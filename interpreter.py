@@ -152,7 +152,7 @@ class ThoroughbredBasicInterpreter:
             'FOR', 'TO', 'NEXT', 'STEP', 'END', 'REMARK', 'REM',
             'OPEN', 'CLOSE', 'READ', 'WRITE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT',
             'IND', 'KEY', 'ERASE', 'SELECT', 'EXTRACT', 'EXTRACTRECORD', 'ERR', 'DOM',
-            'DIM', 'CALL', 'ENTER', 'EXIT', 'ALL'
+            'DIM', 'CALL', 'ENTER', 'EXIT', 'ALL', 'POS'
         }
 
     def _push_context(self, program, line_numbers, variables=None, passed_args=None):
@@ -246,7 +246,82 @@ class ThoroughbredBasicInterpreter:
                     if count == 0: return i
             return -1
 
-        # 1. Handle single values / atoms (Base case)
+        # 1. Handle built-in functions: POS(...)
+        if tokens[0].type == 'POS' and len(tokens) > 2 and tokens[1].type == 'LPAREN':
+            close_idx = find_matching(1, 'LPAREN', 'RPAREN')
+            if close_idx != -1:
+                inner = tokens[2:close_idx]
+                # POS syntax is unique: (search relop reference [, step [, occurrence]])
+                # We need to split by relop first, then by commas for optional args.
+                relop_idx = -1
+                for i, t in enumerate(inner):
+                    if t.type == 'RELOP' or (t.type == 'ASSIGN' and t.value == '='):
+                        relop_idx = i
+                        break
+                
+                if relop_idx != -1:
+                    search_tokens = inner[:relop_idx]
+                    relop = inner[relop_idx].value
+                    
+                    # The rest: reference [, step [, occurrence]]
+                    rest = inner[relop_idx+1:]
+                    parts = []
+                    current = []
+                    depth = 0
+                    for t in rest:
+                        if t.type in ('LPAREN', 'LBRACKET'): depth += 1
+                        elif t.type in ('RPAREN', 'RBRACKET'): depth -= 1
+                        if depth == 0 and t.type == 'COMMA':
+                            parts.append(current)
+                            current = []
+                        else:
+                            current.append(t)
+                    if current: parts.append(current)
+                    
+                    search_str = str(self.evaluate_expression(search_tokens))
+                    ref_str = str(self.evaluate_expression(parts[0]))
+                    step = int(self.evaluate_expression(parts[1])) if len(parts) > 1 else 1
+                    occ_target = int(self.evaluate_expression(parts[2])) if len(parts) > 2 else 1
+                    
+                    found_count = 0
+                    search_len = len(search_str)
+                    ref_len = len(ref_str)
+                    
+                    # Normalize relops
+                    if relop == '><': relop = '<>'
+                    if relop == '=>': relop = '>='
+                    if relop == '=<': relop = '<='
+                    
+                    def compare(s1, s2, op):
+                        res = False
+                        if op == '=': res = (s1 == s2)
+                        elif op == '<>': res = (s1 != s2)
+                        elif op == '<': res = (s1 < s2)
+                        elif op == '>': res = (s1 > s2)
+                        elif op == '<=': res = (s1 <= s2)
+                        elif op == '>=': res = (s1 >= s2)
+                        return res
+
+                    # Iteration range
+                    if step > 0:
+                        indices = range(0, ref_len - search_len + 1, step)
+                    elif step < 0:
+                        indices = range(ref_len - search_len, -1, step)
+                    else:
+                        indices = [] # Step 0? Invalid but handle safely
+                    
+                    for i in indices:
+                        segment = ref_str[i:i+search_len]
+                        if compare(search_str, segment, relop):
+                            found_count += 1
+                            if occ_target != 0 and found_count == occ_target:
+                                return i + 1 # 1-based index
+                    
+                    if occ_target == 0:
+                        return found_count
+                    return 0
+
+        # 2. Handle single values / atoms (Base case)
         if len(tokens) == 1:
             token = tokens[0]
             if token.type == 'NUMBER' or token.type == 'STRING':
@@ -310,27 +385,32 @@ class ThoroughbredBasicInterpreter:
         # Simplified precedence: just look for lowest precedence op (+, -)
         for op_type in ('+', '-'):
             depth = 0
-            for i in range(len(tokens) - 1, -1, -1):
+            for i in range(len(tokens) - 1, 0, -1): # Start from end, stop at 1 (0 is always unary)
                 t = tokens[i]
                 if t.type in ('RPAREN', 'RBRACKET'): depth += 1
                 elif t.type in ('LPAREN', 'LBRACKET'): depth -= 1
                 elif depth == 0 and t.type == 'OP' and t.value == op_type:
-                    left = self.evaluate_expression(tokens[:i])
-                    right = self.evaluate_expression(tokens[i+1:])
-                    if op_type == '+': return left + right
-                    if op_type == '-': return left - right
+                    # Check if binary: Preceded by a value-like token
+                    prev = tokens[i-1]
+                    if prev.type in ('NUMBER', 'STRING', 'ID_NUM', 'ID_STR', 'RPAREN', 'RBRACKET'):
+                        left = self.evaluate_expression(tokens[:i])
+                        right = self.evaluate_expression(tokens[i+1:])
+                        if op_type == '+': return left + right
+                        if op_type == '-': return left - right
 
         for op_type in ('*', '/'):
             depth = 0
-            for i in range(len(tokens) - 1, -1, -1):
+            for i in range(len(tokens) - 1, 0, -1): # Stop at 1
                 t = tokens[i]
                 if t.type in ('RPAREN', 'RBRACKET'): depth += 1
                 elif t.type in ('LPAREN', 'LBRACKET'): depth -= 1
                 elif depth == 0 and t.type == 'OP' and t.value == op_type:
-                    left = self.evaluate_expression(tokens[:i])
-                    right = self.evaluate_expression(tokens[i+1:])
-                    if op_type == '*': return left * right
-                    if op_type == '/': return left / right
+                    prev = tokens[i-1]
+                    if prev.type in ('NUMBER', 'STRING', 'ID_NUM', 'ID_STR', 'RPAREN', 'RBRACKET'):
+                        left = self.evaluate_expression(tokens[:i])
+                        right = self.evaluate_expression(tokens[i+1:])
+                        if op_type == '*': return left * right
+                        if op_type == '/': return left / right
 
         # Unary minus
         if tokens[0].type == 'OP' and tokens[0].value == '-':

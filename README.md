@@ -47,7 +47,7 @@ python3 basic.py
 *   `LOAD <bestandsnaam>`: Laadt een Basic-programma van schijf.
 *   `SAVE <bestandsnaam>`: Slaat het huidige programma op.
 *   `LIST`: Toont de huidige programmacode met regelnummers.
-*   `RUN`: Voert het huidige programma uit.
+*   `RUN [file]`: Voert het huidige programma uit, of laadt en runt direct een bestand (bijv. `RUN "test.bas"`).
 *   `NEW`: Wissen van het huidige programma in het geheugen.
 *   `<regelnummer> <commando>`: Toevoegen of overschrijven van een regel (bijv. `10 PRINT "HALLO"`).
 *   `<regelnummer>`: Verwijderen van een specifieke regel.
@@ -80,6 +80,9 @@ python3 basic.py mijn_programma.bas
 | `CLOSE` | Sluit kanaal en sla data op: `CLOSE (1)` |
 | `ERASE` | Verwijder een bestand van schijf: `ERASE "FILE"` |
 | `END` | Stop programma en sluit alle kanalen. |
+| `DIM` | Definieer arrays: `DIM A(10), S$(20), B$[5](10)` |
+| `CALL/ENTER/EXIT` | Public programs: `CALL "SUB", A`, `ENTER X`, `EXIT` |
+| `POS` | Zoek substring: `POS("S"=A$, 1, 1)` |
 
 ---
 > [!NOTE]
