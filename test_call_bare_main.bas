@@ -1,0 +1,7 @@
+10 REM Bare ENTER test
+20 LET A = 55
+30 LET B$ = "BARE"
+40 PRINT "MAIN BEFORE:", A, B$
+50 CALL "test_call_bare_sub"
+60 PRINT "MAIN AFTER:", A, B$
+70 END

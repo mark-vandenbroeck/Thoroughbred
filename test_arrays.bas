@@ -1,0 +1,17 @@
+10 REM Test Arrays and Substrings
+20 DIM A(5), S$(10), B$[3](5)
+30 LET A(0)=10
+35 LET A(1)=20
+38 LET A(5)=50
+40 PRINT "NUM ARRAY A(0,1,5):", A(0), A(1), A(5)
+50 LET S$="ABCDEFGHIJ"
+60 PRINT "FULL S$:", S$
+70 PRINT "S$(1,3):", S$(1,3)
+80 PRINT "S$(5):", S$(5)
+90 LET S$(4,2)="XX"
+100 PRINT "S$ AFTER SUBST:", S$
+110 LET B$[0]="ZERO"
+120 LET B$[1]="ONE"
+130 LET B$[3]="THREE"
+140 PRINT "STR ARRAY B$[0,1,3]:", B$[0], B$[1], B$[3]
+150 END

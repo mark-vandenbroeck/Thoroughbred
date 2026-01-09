@@ -1,0 +1,7 @@
+10 REM Main Program
+20 LET A = 100
+30 LET B$ = "MAIN"
+40 PRINT "MAIN BEFORE CALL:", A, B$
+50 CALL "test_call_sub", A, B$
+60 PRINT "MAIN AFTER CALL:", A, B$
+70 END
