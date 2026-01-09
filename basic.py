@@ -85,10 +85,22 @@ class BasicCLI:
                 elif cmd_upper == 'NEW':
                     self.source_lines = {}
                     print("Program cleared.")
-                elif cmd_upper == 'RUN':
+                elif cmd_upper.startswith('RUN'):
+                    args = user_input[3:].strip()
+                    if args:
+                        # If filename starts with quotes, strip them
+                        filename = args
+                        if (filename.startswith('"') and filename.endswith('"')) or \
+                           (filename.startswith("'") and filename.endswith("'")):
+                            filename = filename[1:-1]
+                        self.load_program(filename)
+                    
                     if not self.source_lines:
-                        print("Nothing to run.")
+                        # Only print "Nothing to run" if it wasn't just attempting to load
+                        if not args:
+                            print("Nothing to run.")
                         continue
+
                     # Reconstruct program for interpreter
                     full_code = "\n".join([f"{num} {text}" for num, text in sorted(self.source_lines.items())])
                     self.interpreter.load_program(full_code)
@@ -103,7 +115,7 @@ class BasicCLI:
                     filename = user_input[5:].strip()
                     self.load_program(filename)
                 elif cmd_upper == 'HELP':
-                    print("Commands: LIST, RUN, NEW, SAVE <file>, LOAD <file>, EXIT")
+                    print("Commands: LIST, RUN [file], NEW, SAVE <file>, LOAD <file>, EXIT")
                     print("Enter code like: 10 PRINT \"HELLO\"")
                 elif user_input[0].isdigit():
                     # Line entry: "10 PRINT ..."
