@@ -7,6 +7,14 @@ Dit project is een Python-gebaseerde interpreter voor een subset van de **Thorou
 *   **Controle Logica**: `GOTO`, `GOSUB`, `RETURN`, `IF...THEN` en gestructureerde `FOR...NEXT` lussen.
 *   **Input/Output**: Interactieve `INPUT` en flexibele `PRINT` commando's.
 *   **Line-based**: Volledige ondersteuning voor regelnummers (verplicht voor programmaflow).
+*   **GUI Terminal**: Inclusief een 80x24 terminal venster met ondersteuning voor mnemonics (cursor positionering, kleuren, etc.).
+
+## 📂 Project Structuur
+Het project is modulair opgebouwd:
+*   `basic.py`: De entry-point en CLI/GUI interface.
+*   `interpreter.py`: De kernlogica van de interpreter.
+*   `lexer.py`: Tokenizer en syntax definities.
+*   `file_manager.py`: Afhandeling van Basic bestandsformaten en I/O.
 
 ## 🛠 Gebruikshandleiding
 
@@ -83,6 +91,37 @@ python3 basic.py mijn_programma.bas
 | `DIM` | Definieer arrays: `DIM A(10), S$(20), B$[5](10)` |
 | `CALL/ENTER/EXIT` | Public programs: `CALL "SUB", A`, `ENTER X`, `EXIT` |
 | `POS` | Zoek substring: `POS("S"=A$, 1, 1)` |
+| `LEN` | Lengte van string: `LEN("ABC")` |
+| `STR$/VAL` | Conversie: `STR$(100)`, `VAL("1.5")` |
+| `ASC/CHR$` | ASCII: `ASC("A")`, `CHR$(65)` |
+| `UCS/LCS` | Case: `UCS("a")` -> "A", `LCS("A")` -> "a" |
+| `CVS` | Convert String: `CVS(S$, 3)` (Strip links/rechts) |
+| `INT/IPT/FPT`| Integer/Fractional parts: `INT(4.9)` -> 4, `FPT(4.9)` -> 0.9 |
+| `MOD` | Modulo: `MOD(10, 3)` -> 1 |
+| `ROUND` | Afronden: `ROUND(3.14159, 2)` -> 3.14 |
+| `SIN/COS/TAN`| Goniometrie: `SIN(0.5)`, `ATN(1)` |
+| `LOG/EXP` | Logaritmen: `LOG(10)`, `EXP(1)` |
+| `SQR` | Wortel: `SQR(16)` -> 4 |
+
+## 📟 Commando's en Mnemonics in `PRINT`
+De interpreter ondersteunt nu ook terminal mnemonics voor geavanceerde schermsturing.
+
+**Voorbeeld:**
+```basic
+10 PRINT 'CS', 'BR', "Title", 'ER'
+20 PRINT @(10, 5), "Cursor op kolom 10, rij 5"
+```
+
+| Mnemonic | Functie |
+| :--- | :--- |
+| `'CS'` | Clear Screen |
+| `'BR'/'ER'` | Begin/End Reverse Video |
+| `'BU'/'EU'` | Begin/End Underline |
+| `'VT'/'LF'` | Omhoog/Omlaag |
+| `'BS'/'CH'` | Backspace/Cursor Home |
+| `'CE'` | Clear to End of Screen |
+| `'CL'` | Clear to End of Line |
+| `'LD'` | Line Delete |
 
 ---
 > [!NOTE]

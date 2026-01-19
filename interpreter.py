@@ -2,158 +2,22 @@ import json
 import os
 import re
 import sys
+import math
+import random
 
-class FileManager:
-    def __init__(self):
-        self.channels = {} # chan_num -> {type, filename, data, pos}
-        self.storage_dir = "basic_storage"
-        if not os.path.exists(self.storage_dir):
-            os.makedirs(self.storage_dir)
 
-    def _get_path(self, filename):
-        return os.path.join(self.storage_dir, filename + ".json")
-
-    def create(self, filename, file_type, rec_len=None, key_len=None):
-        path = self._get_path(filename)
-        # Use a structure that includes metadata
-        file_content = {
-            "_metadata": {
-                "type": file_type,
-                "rec_len": rec_len,
-                "key_len": key_len
-            },
-            "records": {}
-        }
-        with open(path, 'w') as f:
-            json.dump(file_content, f, indent=2)
-
-    def open(self, channel, filename, file_type=None, rec_len=None):
-        path = self._get_path(filename)
-        if not os.path.exists(path):
-            raise FileNotFoundError(f"File not found: {filename}")
-        
-        with open(path, 'r') as f:
-            file_content = json.load(f)
-        
-        # If the file uses the old format (no metadata), migrate it or handle it
-        if "_metadata" not in file_content:
-            metadata = {
-                "type": file_type or "SERIAL",
-                "rec_len": rec_len,
-                "key_len": None
-            }
-            records = file_content
-        else:
-            metadata = file_content["_metadata"]
-            records = file_content["records"]
-        
-        self.channels[channel] = {
-            'type': metadata['type'],
-            'filename': filename,
-            'data': records,
-            'metadata': metadata,
-            'pos': 0
-        }
-
-    def close(self, channel):
-        if channel in self.channels:
-            chan = self.channels[channel]
-            path = self._get_path(chan['filename'])
-            file_content = {
-                "_metadata": chan['metadata'],
-                "records": chan['data']
-            }
-            with open(path, 'w') as f:
-                json.dump(file_content, f, indent=2)
-            del self.channels[channel]
-
-    def write(self, channel, key=None, ind=None, values=None):
-        if channel not in self.channels:
-            raise RuntimeError(f"Channel {channel} not open")
-        
-        chan = self.channels[channel]
-        data = chan['data']
-        
-        if chan['type'] == 'INDEXED' and ind is not None:
-            data[str(ind)] = values
-        elif chan['type'] in ('DIRECT', 'SORT') and key is not None:
-            data[str(key)] = values
-        elif chan['type'] == 'SERIAL':
-            data[str(len(data))] = values
-        else:
-            raise RuntimeError(f"Invalid write operation on {chan['type']} file")
-
-    def read(self, channel, key=None, ind=None):
-        if channel not in self.channels:
-            raise RuntimeError(f"Channel {channel} not open")
-        
-        chan = self.channels[channel]
-        data = chan['data']
-        
-        if chan['type'] == 'INDEXED' and ind is not None:
-            return data.get(str(ind))
-        elif chan['type'] in ('DIRECT', 'SORT') and key is not None:
-            return data.get(str(key))
-        elif chan['type'] == 'SERIAL':
-            val = data.get(str(chan['pos']))
-            if val is not None:
-                chan['pos'] += 1
-            return val
-        
-        return None
-
-    def extract(self, channel, key=None, ind=None):
-        """Same as read, but would normally lock the record in Thoroughbred."""
-        return self.read(channel, key=key, ind=ind)
-
-    def erase(self, filename):
-        path = self._get_path(filename)
-        if os.path.exists(path):
-            os.remove(path)
-
-class Token:
-    def __init__(self, type, value, line=None):
-        self.type = type
-        self.value = value
-        self.line = line
-
-    def __repr__(self):
-        return f"Token({self.type}, {self.value})"
+from file_manager import FileManager
+from lexer import Lexer, Token
 
 class ThoroughbredBasicInterpreter:
-    def __init__(self):
+    def __init__(self, io_handler=None):
         self.context_stack = []
         self.file_manager = FileManager()
+        self.io_handler = io_handler # Can be None for stdout/stdin fallback
+        self.lexer = Lexer()
         
         # Initial context for the main program
         self._push_context({}, [])
-
-        # Token specification
-        self.token_specification = [
-            ('NUMBER',   r'\d+(\.\d*)?'),  # Integer or decimal number
-            ('STRING',   r'"[^"]*"'),      # String literal
-            ('ID_STR',   r'[A-Z][A-Z0-9]*\$'), # String variable
-            ('ID_NUM',   r'[A-Z][A-Z0-9]*'),    # Numeric variable
-            ('ASSIGN',   r'='),            # Assignment operator
-            ('OP',       r'[+\-*/]'),       # Arithmetic operators
-            ('RELOP',    r'[<>]=?|='),      # Relational operators
-            ('LPAREN',   r'\('),           # (
-            ('RPAREN',   r'\)'),           # )
-            ('LBRACKET', r'\['),           # [
-            ('RBRACKET', r'\]'),           # ]
-            ('COMMA',    r','),            # ,
-            ('SEMICOLON', r';'),           # ;
-            ('NEWLINE',  r'\n'),           # Line endings
-            ('SKIP',     r'[ \t]+'),       # Skip over spaces and tabs
-            ('MISMATCH', r'.'),            # Any other character
-        ]
-        self.keywords = {
-            'PRINT', 'LET', 'IF', 'THEN', 'ELSE', 'GOTO', 'GOSUB', 'RETURN', 'INPUT', 
-            'FOR', 'TO', 'NEXT', 'STEP', 'END', 'REMARK', 'REM',
-            'OPEN', 'CLOSE', 'READ', 'WRITE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT',
-            'IND', 'KEY', 'ERASE', 'SELECT', 'EXTRACT', 'EXTRACTRECORD', 'ERR', 'DOM',
-            'DIM', 'CALL', 'ENTER', 'EXIT', 'ALL', 'POS'
-        }
 
     def _push_context(self, program, line_numbers, variables=None, passed_args=None):
         self.context_stack.append({
@@ -189,29 +53,13 @@ class ThoroughbredBasicInterpreter:
     @property
     def for_loops(self): return self._curr()['for_loops']
 
-    def tokenize(self, text):
-        tok_regex = '|'.join('(?P<%s>%s)' % pair for pair in self.token_specification)
-        for mo in re.finditer(tok_regex, text.upper()):
-            kind = mo.lastgroup
-            value = mo.group()
-            if kind == 'NUMBER':
-                value = float(value) if '.' in value else int(value)
-            elif kind == 'ID_NUM' or kind == 'ID_STR':
-                if value in self.keywords:
-                    kind = value
-            elif kind == 'SKIP':
-                continue
-            elif kind == 'MISMATCH':
-                raise RuntimeError(f'{value!r} unexpected on line')
-            yield Token(kind, value)
-
     def load_program(self, source_code):
         self.program = {}
         for line in source_code.splitlines():
             if not line.strip():
                 continue
             
-            tokens = list(self.tokenize(line))
+            tokens = list(self.lexer.tokenize(line))
             if not tokens:
                 continue
                 
@@ -320,6 +168,88 @@ class ThoroughbredBasicInterpreter:
                     if occ_target == 0:
                         return found_count
                     return 0
+        
+                    if occ_target == 0:
+                        return found_count
+                    return 0
+        
+        # 1b. Handle built-in functions
+        builtins = {'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
+                    'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
+                    'MOD', 'ROUND', 'FPT', 'IPT'}
+        
+        if tokens[0].type in builtins and len(tokens) > 2 and tokens[1].type == 'LPAREN':
+            close_idx = find_matching(1, 'LPAREN', 'RPAREN')
+            if close_idx != -1:
+                inner = tokens[2:close_idx]
+                # Split args by COMMA
+                args = []
+                current = []
+                d = 0
+                for t in inner:
+                    if t.type in ('LPAREN', 'LBRACKET'): d+=1
+                    elif t.type in ('RPAREN', 'RBRACKET'): d-=1
+                    if d==0 and t.type == 'COMMA':
+                        args.append(current)
+                        current = []
+                    else:
+                        current.append(t)
+                if current: args.append(current)
+                
+                func = tokens[0].type
+                
+                # Helper to evaluate single arg
+                def eval_arg(idx):
+                    if idx < len(args): return self.evaluate_expression(args[idx])
+                    return None
+
+                val1 = eval_arg(0)
+                
+                # String Functions
+                if func == 'LEN': return len(str(val1))
+                elif func == 'STR$': return str(val1)
+                elif func == 'VAL':
+                    try: return float(str(val1))
+                    except: return 0.0
+                elif func == 'ASC': return ord(str(val1)[0]) if str(val1) else 0
+                elif func == 'CHR$': return chr(int(val1))
+                elif func == 'UCS': return str(val1).upper()
+                elif func == 'LCS': return str(val1).lower()
+                elif func == 'CVS':
+                    s = str(val1)
+                    code = int(eval_arg(1) or 0)
+                    if code & 1: s = s.lstrip()
+                    if code & 2: s = s.rstrip()
+                    if code & 16: s = s.upper()
+                    if code & 32: s = s.lower()
+                    return s
+
+                # Numeric Functions
+                try:
+                    n1 = float(val1) if val1 is not None else 0.0
+                except:
+                    n1 = 0.0 # Strict basic might error, here we default
+
+                if func == 'ABS': return abs(n1)
+                elif func == 'INT': return math.floor(n1)
+                elif func == 'IPT': return int(n1) # Integer part (truncation)
+                elif func == 'FPT': return round(n1 - int(n1), 10) # Fractional part (cleaned)
+                elif func == 'SGN': return (n1 > 0) - (n1 < 0)
+                elif func == 'SQR': return math.sqrt(n1) if n1 >= 0 else 0
+                elif func == 'SIN': return math.sin(n1)
+                elif func == 'COS': return math.cos(n1)
+                elif func == 'TAN': return math.tan(n1)
+                elif func == 'ATN': return math.atan(n1)
+                elif func == 'EXP': return math.exp(n1)
+                elif func == 'LOG': return math.log(n1) if n1 > 0 else 0
+                elif func == 'RND': return random.random() # RND(X) often uses X to seed or determine range, but simple RND() 0-1 is standard-ish fallback
+                elif func == 'MOD':
+                    n2 = float(eval_arg(1) or 0)
+                    return int(n1 % n2)
+                elif func == 'ROUND':
+                    n2 = int(eval_arg(1) or 0)
+                    return round(n1, n2)
+
 
         # 2. Handle single values / atoms (Base case)
         if len(tokens) == 1:
@@ -469,23 +399,137 @@ class ThoroughbredBasicInterpreter:
                 
                 if cmd == 'PRINT':
                     # Improved PRINT: comma/semicolon aware, but skips those inside () or []
+                    # Check for @(col, row)
+                    current_idx = 1
+                    if current_idx < len(tokens) and tokens[current_idx].type == 'AT':
+                        # Expect LPAREN, col, COMMA, row, RPAREN
+                        try:
+                            if tokens[current_idx+1].type == 'LPAREN':
+                                # Parse (col, row)
+                                paren_end = -1
+                                depth = 0
+                                for i in range(current_idx+1, len(tokens)):
+                                    if tokens[i].type == 'LPAREN': depth += 1
+                                    elif tokens[i].type == 'RPAREN': 
+                                        depth -= 1
+                                        if depth == 0: 
+                                            paren_end = i
+                                            break
+                                
+                                if paren_end != -1:
+                                    # Extract inside parens
+                                    inside = tokens[current_idx+2:paren_end]
+                                    # Split by comma
+                                    parts = []
+                                    curr = []
+                                    d = 0
+                                    for t in inside:
+                                        if t.type in ('LPAREN', 'LBRACKET'): d+=1
+                                        elif t.type in ('RPAREN', 'RBRACKET'): d-=1
+                                        if d==0 and t.type == 'COMMA':
+                                            parts.append(curr)
+                                            curr = []
+                                        else:
+                                            curr.append(t)
+                                    if curr: parts.append(curr)
+                                    
+                                    if len(parts) >= 2:
+                                        col = int(self.evaluate_expression(parts[0]))
+                                        row = int(self.evaluate_expression(parts[1]))
+                                        if self.io_handler:
+                                            self.io_handler.move_cursor(col, row)
+                                    
+                                    current_idx = paren_end + 1
+                        except Exception:
+                            pass # Fallback to normal print if parsing fails
+
                     output = []
                     current_expr = []
                     depth = 0
-                    for t in tokens[1:]:
-                        if t.type in ('LPAREN', 'LBRACKET'): depth += 1
-                        elif t.type in ('RPAREN', 'RBRACKET'): depth -= 1
-                        
-                        if depth == 0 and t.type in ('COMMA', 'SEMICOLON'):
+                    final_separator = None 
+
+                    for t in tokens[current_idx:]:
+                        if t.type == 'MNEMONIC':
+                            # Flush current expression if any
                             if current_expr:
-                                output.append(str(self.evaluate_expression(current_expr)))
+                                val = str(self.evaluate_expression(current_expr))
+                                output.append(val)
                                 current_expr = []
+                            
+                            # Handle Mnemonic
+                            mnemonic = t.value[1:-1] # Strip quotes
+                            if self.io_handler:
+                                # Flush current output first
+                                if output:
+                                    text_out = " ".join(output)
+                                    self.io_handler.write(text_out)
+                                    output = []
+
+                    for t in tokens[current_idx:]:
+                        if t.type == 'MNEMONIC':
+                            # Flush current expression if any
+                            if current_expr:
+                                val = str(self.evaluate_expression(current_expr))
+                                output.append(val)
+                                current_expr = []
+                            
+                            # Handle Mnemonic
+                            mnemonic = t.value[1:-1] # Strip quotes
+                            if self.io_handler:
+                                # Flush current output first
+                                if output:
+                                    text_out = " ".join(output)
+                                    self.io_handler.write(text_out)
+                                    output = []
+
+                                if mnemonic == 'CS': self.io_handler.clear_screen()
+                                elif mnemonic == 'BR': self.io_handler.set_reverse(True)
+                                elif mnemonic == 'ER': self.io_handler.set_reverse(False)
+                                elif mnemonic == 'BU': self.io_handler.set_underline(True)
+                                elif mnemonic == 'EU': self.io_handler.set_underline(False)
+                                elif mnemonic == 'VT': self.io_handler.move_relative(0, -1)
+                                elif mnemonic == 'LF': self.io_handler.move_relative(0, 1)
+                                elif mnemonic == 'BS': self.io_handler.move_relative(-1, 0)
+                                elif mnemonic == 'CH': self.io_handler.move_cursor(0, 0) # Home
+                                elif mnemonic == 'CE': self.io_handler.clear_eos()
+                                elif mnemonic == 'CL': self.io_handler.clear_eol()
+                                elif mnemonic == 'LD': self.io_handler.delete_line()
+                            # Ignore unknown mnemonics or add more later
+                            
+                            final_separator = None 
+                            
                         else:
-                            current_expr.append(t)
+                            # Update depth for parens/brackets
+                            if t.type in ('LPAREN', 'LBRACKET'): 
+                                depth += 1
+                            elif t.type in ('RPAREN', 'RBRACKET'): 
+                                depth -= 1
+                            
+                            if depth == 0 and t.type in ('COMMA', 'SEMICOLON'):
+                                if current_expr:
+                                    val = str(self.evaluate_expression(current_expr))
+                                    output.append(val)
+                                    current_expr = []
+                                    
+                                # Handle spacing behavior
+                                final_separator = t.type
+                            else:
+                                current_expr.append(t)
+                                final_separator = None
+                            
                     if current_expr:
                         output.append(str(self.evaluate_expression(current_expr)))
                     
-                    print(" ".join(output))
+                    # Construct string
+                    text_out = " ".join(output)
+                    if self.io_handler:
+                        self.io_handler.write(text_out)
+                        if final_separator != 'SEMICOLON':
+                             self.io_handler.write("\n")
+                    else:
+                        # Fallback
+                        print(text_out, end="" if final_separator == 'SEMICOLON' else "\n")
+                        
                     self.current_line_idx += 1
                 
                 elif cmd == 'LET':
@@ -701,7 +745,11 @@ class ThoroughbredBasicInterpreter:
                     else:
                         var_token = tokens[1]
                     
-                    user_input = input(prompt)
+                    if self.io_handler:
+                        user_input = self.io_handler.input(prompt)
+                    else:
+                        user_input = input(prompt)
+
                     if var_token.type == 'ID_NUM':
                         try:
                             self.variables[var_token.value] = float(user_input) if '.' in user_input else int(user_input)
@@ -986,11 +1034,17 @@ class ThoroughbredBasicInterpreter:
                             args.append({'value': val, 'var_name': var_name, 'is_all': is_all})
                     
                     # Search for program
+                    # Search for program
                     filename = prog_name + ".bas"
                     if not os.path.exists(filename):
-                        if not self._handle_file_error('ERR', options):
+                        # Try tests directory
+                        test_filename = os.path.join("tests", filename)
+                        if os.path.exists(test_filename):
+                            filename = test_filename
+                        elif not self._handle_file_error('ERR', options):
                             raise RuntimeError(f"ERR=12: Program not found: {filename}")
-                        continue
+                        else:
+                             continue
                     
                     # Load and execute
                     with open(filename, 'r') as f:
