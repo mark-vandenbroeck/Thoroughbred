@@ -265,7 +265,6 @@ class TerminalGUI:
         self.text_widget.insert(tk.END, "\n")
         self.input_enabled = False
         self.io_handler.input_queue.put(text)
-        self.io_handler.input_queue.put(text)
         return "break"
 
     def shutdown(self):
