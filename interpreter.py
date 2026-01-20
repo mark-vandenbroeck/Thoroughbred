@@ -205,7 +205,9 @@ class ThoroughbredBasicInterpreter:
         builtins = {'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
                     'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
                     'MOD', 'ROUND', 'FPT', 'IPT',
-                    'AND', 'OR', 'NOT', 'XOR', 'DTN'}
+                    'MOD', 'ROUND', 'FPT', 'IPT',
+                    'AND', 'OR', 'NOT', 'XOR', 'DTN',
+                    'ATH', 'HTA'}
         
         if tokens[0].type in builtins and len(tokens) > 2 and tokens[1].type == 'LPAREN':
             close_idx = find_matching(1, 'LPAREN', 'RPAREN')
@@ -307,6 +309,16 @@ class ThoroughbredBasicInterpreter:
                         m = str(eval_arg(1)) if len(args) > 1 else "DD-MON-YYYY HH:MI:SS"
                         return self._calculate_dtn(v, m)
                     except: return 0.0
+                elif func == 'ATH':
+                    # ASCII to Hex (creates string where bytes are hex values)
+                    s = str(val1)
+                    if len(s) % 2 != 0: s = '0' + s
+                    try: return bytes.fromhex(s).decode('latin1')
+                    except: return "" # ERR=26 logic needed eventually
+                elif func == 'HTA':
+                    # Hex to ASCII (returns hex string of input bytes)
+                    s = str(val1)
+                    return s.encode('latin1').hex().upper()
 
 
         # 2. Handle single values / atoms (Base case)

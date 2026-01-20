@@ -57,15 +57,14 @@ Geeft de absolute waarde van een getal.
 ### ASC
 **Syntax:** `ASC(string)`  
 Geeft de ASCII-waarde van het eerste karakter van de string.
-### ASC
-**Syntax:** `ASC(string)`  
-Geeft de ASCII-waarde van het eerste karakter van de string.
 - `ASC("A")` -> `65`
 
-### AND
-**Syntax:** `AND(str1, str2)`  
-Voert een bitwise AND uit op de ASCII-waarden van de karakters in beide strings.
-- `AND(CHR$(255), CHR$(15))` -> `CHR$(15)`
+### ATH
+**Syntax:** `ATH(string)`  
+(ASCII to Hex) Converteert een hexadecimale string naar een binaire string (bytes).
+- Als de lengte oneven is, wordt een '0' voorgevoegd ("A" -> "0A").
+- `ATH("41")` -> `"A"`
+- `ATH("414243")` -> `"ABC"`
 
 ### ATN
 **Syntax:** `ATN(num)`  
@@ -245,6 +244,18 @@ Springt naar een subroutine op het opgegeven regelnummer. Keer terug met `RETURN
 **Syntax:** `GOTO line`  
 Springt onvoorwaardelijk naar het opgegeven regelnummer.
 - `GOTO 10`
+
+---
+
+---
+
+## H
+
+### HTA
+**Syntax:** `HTA(string)`  
+(Hex to ASCII) Converteert een string naar zijn hexadecimale representatie.
+- `HTA("A")` -> `"41"`
+- `HTA("ABC")` -> `"414243"`
 
 ---
 
