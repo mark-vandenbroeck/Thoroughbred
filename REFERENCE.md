@@ -138,7 +138,20 @@ Maakt een nieuw DIRECT bestand aan.
 
 ---
 
-## E
+- `DIRECT "klanten", 10, 64, 0, 0`
+
+### DTN
+**Syntax:** `DTN(string [, mask])`  
+Converteert een datumstring volgens het masker naar een SQL numerieke datum (Julian Day Number).
+**Masker opties:**
+- `YYYY`, `YY`, `YYY`: Jaar.
+- `MM`, `MON`, `MONTH`: Maand.
+- `DD`, `DDD`: Dag.
+- `HH`, `MI`, `SS`: Tijd.
+**Default:** "DD-MON-YYYY HH:MI:SS"
+- `DTN("25-DEC-2023", "DD-MON-YYYY")` -> `2460306.0`
+
+---
 
 ### END
 **Syntax:** `END`  

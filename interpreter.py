@@ -4,6 +4,7 @@ import re
 import sys
 import math
 import random
+from datetime import datetime
 
 
 from file_manager import FileManager
@@ -204,7 +205,7 @@ class ThoroughbredBasicInterpreter:
         builtins = {'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
                     'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
                     'MOD', 'ROUND', 'FPT', 'IPT',
-                    'AND', 'OR', 'NOT', 'XOR'}
+                    'AND', 'OR', 'NOT', 'XOR', 'DTN'}
         
         if tokens[0].type in builtins and len(tokens) > 2 and tokens[1].type == 'LPAREN':
             close_idx = find_matching(1, 'LPAREN', 'RPAREN')
@@ -300,6 +301,12 @@ class ThoroughbredBasicInterpreter:
                 elif func == 'ROUND':
                     n2 = int(eval_arg(1) or 0)
                     return round(n1, n2)
+                elif func == 'DTN':
+                    try:
+                        v = str(val1)
+                        m = str(eval_arg(1)) if len(args) > 1 else "DD-MON-YYYY HH:MI:SS"
+                        return self._calculate_dtn(v, m)
+                    except: return 0.0
 
 
         # 2. Handle single values / atoms (Base case)
@@ -1416,6 +1423,61 @@ class ThoroughbredBasicInterpreter:
 
         else:
             self.current_line_idx += 1
+
+    def _calculate_dtn(self, val_str, mask_str):
+        # Tokens map (Priority by length)
+        tokens = [
+             ('YYYY', r'(?P<Y4>[+\-]?\d{4})'), ('YYY', r'(?P<Y3>\d{3})'), ('YY', r'(?P<Y2>\d{2})'),
+             ('MONTH', r'(?P<MONTH>[A-Z]+)'), ('Month', r'(?P<Month>[a-zA-Z]+)'), ('MON', r'(?P<MON>[A-Z]{3})'), ('Mon', r'(?P<Mon>[a-zA-Z]{3})'),
+             ('MM', r'(?P<M>\d{2})'),
+             ('DD', r'(?P<D>\d{2})'),
+             ('HH', r'(?P<H>\d{2})'), ('MI', r'(?P<MI>\d{2})'), ('SS', r'(?P<S>\d{2})')
+        ]
+        
+        pattern = re.escape(mask_str)
+        for tok, rgx in tokens:
+            pattern = pattern.replace(re.escape(tok), rgx)
+            
+        match = re.match(f'^{pattern}', val_str)
+        if not match: return 0.0 # Or raise error
+        
+        parts = match.groupdict()
+        
+        y, m, d = 1, 1, 1
+        Hr, Mn, Sc = 0, 0, 0
+        
+        if 'Y4' in parts and parts['Y4']: y = int(parts['Y4'])
+        elif 'Y3' in parts and parts['Y3']: y = int(parts['Y3'])
+        elif 'Y2' in parts and parts['Y2']:
+            y2 = int(parts['Y2'])
+            now_y = datetime.now().year
+            pivot = now_y % 100
+            cent = (now_y // 100) * 100
+            if y2 > pivot + 49: y = (cent - 100) + y2
+            elif y2 < pivot - 50: y = (cent + 100) + y2
+            else: y = cent + y2
+
+        if 'M' in parts and parts['M']: m = int(parts['M'])
+        elif 'MON' in parts and parts['MON']:
+            abbrs = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"]
+            try: m = abbrs.index(parts['MON'].upper()) + 1
+            except: pass
+        elif 'MONTH' in parts and parts['MONTH']:
+             full = ["JANUARY","FEBRUARY","MARCH","APRIL","MAY","JUNE","JULY","AUGUST","SEPTEMBER","OCTOBER","NOVEMBER","DECEMBER"]
+             try: m = full.index(parts['MONTH'].upper()) + 1
+             except: pass
+             
+        if 'D' in parts and parts['D']: d = int(parts['D'])
+        if 'H' in parts and parts['H']: Hr = int(parts['H'])
+        if 'MI' in parts and parts['MI']: Mn = int(parts['MI'])
+        if 'S' in parts and parts['S']: Sc = int(parts['S'])
+        
+        def jdn(Y, M, D):
+            return (1461 * (Y + 4800 + (M - 14) // 12)) // 4 + (367 * (M - 2 - 12 * ((M - 14) // 12))) // 12 - (3 * ((Y + 4900 + (M - 14) // 12) // 100)) // 4 + D - 32075
+
+        jd = jdn(y, m, d)
+        tf = (Hr * 3600 + Mn * 60 + Sc) / 86400.0
+        return float(jd) + tf
 
 
 if __name__ == "__main__":
