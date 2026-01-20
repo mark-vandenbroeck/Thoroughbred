@@ -104,9 +104,15 @@ Geeft de cosinus van een hoek (in radialen).
 ### CVS
 **Syntax:** `CVS(string, mode)`  
 Converteert of manipuleert een string op basis van de modus:
+- `1`: Strip leading spaces (LTRIM)
+- `2`: Strip trailing spaces (RTRIM)
+- `16`: Naar hoofdletters (UpperCase)
 - `32`: Naar kleine letters (LowerCase)
-Modi kunnen opgeteld worden (bijv. `3` = strip leading & trailing).
+**Combinaties:**
+- `3` (1+2): Strip beide.
+- `19` (1+2+16): Strip beide en converteer naar hoofdletters.
 - `CVS("  Test  ", 3)` -> `"Test"`
+- `CVS("abc", 16)` -> `"ABC"`
 
 ---
 
@@ -158,13 +164,17 @@ Verwijdert een bestand van de schijf.
 Voert dynamisch Basic-code uit.
 **Effect:**
 - Parsed de string `string_expr` en voert deze uit.
-- Zonder regelnummer: Directe uitvoering (console mode).
-- Met regelnummer: Voegt regel toe of wijzigt regel in het huidige programma.
-- `OPT="LOCAL"`: Voert uit in de lokale context (standaard is globaal/main programma).
-- Wijzigt de programmacode in het geheugen tijdens runtime (self-modifying code).
-- Kan variabelen wijzigen.
-- `EXECUTE "PRINT 'Hello'"`
-- `EXECUTE "Let A = 10", OPT="LOCAL"`
+- Zonder regelnummer: Directe uitvoering (console mode equivalent).
+- Met regelnummer: Voegt regel toe of wijzigt regel in het huidige programma (**Self-Modifying Code**).
+- `OPT="LOCAL"`: Voert uit in een tijdelijke context. Variabelen worden niet permanent in het hoofdprogramma gewijzigd.
+**Side Effects:**
+- Wijzigt de programmacode in het geheugen tijdens runtime indien een regelnummer wordt gebruikt.
+- Kan variabelen wijzigen in de globale scope (zonder `OPT="LOCAL"`).
+**Voorbeelden:**
+- `EXECUTE "PRINT 'Hello'"` (Directe uitvoer)
+- `EXECUTE "100 PRINT 'New Line'"` (Wijzigt regel 100)
+- `EXECUTE "LET A=10"` (Zet A=10 in globale scope)
+- `EXECUTE "LET A=20", OPT="LOCAL"` (Zet A=20 lokaal)
 
 ### EXIT
 **Syntax:** `EXIT`  
@@ -311,9 +321,24 @@ Voert een bitwise OR uit op de ASCII-waarden.
 ## P
 
 ### POS
-**Syntax:** `POS(heystack, needle, start)`  
-(Let op syntax kan variëren per Basic, hier geïmplementeerd als functie). Zoekt de positie van een substring.
-- `POS("HELLO", "L", 1)` -> `3`
+**Syntax:** `POS(heystack, needle, start)` OF `POS(relational_expression [, step [, count]])`  
+Zoekt de positie van een substring.  
+**Geavanceerd Gebruik:**
+De POS functie evalueert een relationele expressie over de hele string en zoekt matches.
+- `POS("A" = A$)`: Zoek eerste voorkomen waar karakter gelijk is aan "A".
+- `POS("A" = A$, 1, 2)`: Zoek het **2e** voorkomen, stapgrootte 1.
+- `POS("A" = A$, -1, 1)`: Zoek achterstevoren (stap -1).
+- `POS(A$ = "Hello")`: Zoek waar substring A$ gelijk is aan "Hello" (substring match).
+- `POS(A$ > "B")`: Zoek positie waar karakters groter zijn dan "B".
+**Parameters:**
+- `relational_expression`: Formaat `"needle" RELOP "haystack"` of andersom. RELOPs: `=`, `<>`, `<`, `>`, `<=`, `>=`.
+- `step`: Stapgrootte voor de zoekloop (positief = vooruit, negatief = achteruit). Default `1`.
+- `count`: Welke match teruggeven (1e, 2e...). Indien `0`, geeft het **totaal aantal matches** terug.
+
+**Voorbeelden:**
+- `POS("S" = "MISSISSIPPI")` -> `3`
+- `POS("S" = "MISSISSIPPI", 1, 0)` -> `4` (totaal aantal 'S'-en)
+- `POS("S" = "MISSISSIPPI", -1, 1)` -> `7` (laatste 'S', gezien vanaf eind)
 
 ### PRINT
 **Syntax:** `PRINT expr, ...`  
