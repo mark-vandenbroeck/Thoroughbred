@@ -86,7 +86,7 @@ class FileManager:
         else:
             raise RuntimeError(f"Invalid write operation on {chan['type']} file")
 
-    def read(self, channel, key=None, ind=None):
+    def read(self, channel, key=None, ind=None, advance_pointer=True):
         if channel not in self.channels:
             raise RuntimeError(f"Channel {channel} not open")
         
@@ -99,15 +99,15 @@ class FileManager:
             return data.get(str(key))
         elif chan['type'] == 'SERIAL':
             val = data.get(str(chan['pos']))
-            if val is not None:
+            if val is not None and advance_pointer:
                 chan['pos'] += 1
             return val
         
         return None
 
     def extract(self, channel, key=None, ind=None):
-        """Same as read, but would normally lock the record in Thoroughbred."""
-        return self.read(channel, key=key, ind=ind)
+        """Same as read, but usually locks record. In this interpreter, it ensures file pointer is NOT advanced for subsequent updates."""
+        return self.read(channel, key=key, ind=ind, advance_pointer=False)
 
     def erase(self, filename):
         path = self._get_path(filename)

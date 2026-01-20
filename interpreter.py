@@ -949,25 +949,27 @@ class ThoroughbredBasicInterpreter:
                             self.file_manager.write(chn, key=key, ind=ind, values=values)
 
                     elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD'):
-                        if cmd in ('EXTRACT', 'EXTRACTRECORD'):
-                            data = self.file_manager.extract(chn, key=key, ind=ind)
-                        else:
-                            data = self.file_manager.read(chn, key=key, ind=ind)
-
-                        if data is None:
-                            if self._handle_file_error('DOM', options): jumped = True
-                            else: raise RuntimeError(f"Record not found on channel {chn}")
-
                         if not jumped:
+                            # Use proper method based on command
+                            if cmd in ('EXTRACT', 'EXTRACTRECORD'):
+                                val = self.file_manager.extract(chn, key=key, ind=ind)
+                            else:
+                                val = self.file_manager.read(chn, key=key, ind=ind)
+                                
+                            if val is None:
+                                # EOF or not found logic (simplified)
+                                raise RuntimeError("End of file or record not found")
                             if cmd == 'EXTRACTRECORD':
                                 var_tok = tokens[idx]
-                                self.variables[var_tok.value] = "|".join(map(str, data))
+                                self.variables[var_tok.value] = "|".join(map(str, val))
                             else:
                                 var_idx = 0
                                 while idx < len(tokens):
                                     t = tokens[idx]
                                     if t.type in ('ID_NUM', 'ID_STR'):
-                                        if var_idx < len(data): self.variables[t.value] = data[var_idx]
+                                        # Assign from data
+                                        if var_idx < len(val):
+                                            self.variables[t.value] = val[var_idx]
                                         var_idx += 1
                                     idx += 1
 

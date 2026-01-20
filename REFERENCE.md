@@ -98,7 +98,8 @@ Geeft `e` tot de macht `num`.
 
 ### EXTRACT / EXTRACTRECORD
 **Syntax:** `EXTRACT (chn, KEY=k, IND=i) ...`  
-Leest een record en lockt deze voor updates (in deze interpreter functioneel gelijk aan `READ`).
+Leest een record en lockt deze voor updates.
+**Verschil met READ:** `EXTRACT` verzet de file pointer **niet**, terwijl `READ` dit wel doet (voor bv. sequentiële toegang).
 
 ---
 
