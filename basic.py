@@ -413,7 +413,10 @@ class BasicCLI:
                     else:
                         self.source_lines.pop(line_num, None)
                 else:
-                    self.print(f"Direct mode not yet supported. Use line numbers.")
+                    try:
+                        self.interpreter.execute_direct(user_input)
+                    except Exception as e:
+                        self.print(f"Error: {e}")
             except Exception as e:
                 self.print(f"CLI Error: {e}")
 

@@ -69,6 +69,11 @@ class ThoroughbredBasicInterpreter:
     @program_source.setter
     def program_source(self, value): self._curr()['program_source'] = value
 
+    def execute_direct(self, code):
+        tokens = list(self.lexer.tokenize(code))
+        if tokens:
+            self._dispatch_statement(tokens)
+
     def load_program(self, source_code):
         self.program = {}
         self.program_source = {} # line_number -> raw source string
