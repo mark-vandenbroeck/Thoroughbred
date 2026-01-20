@@ -41,7 +41,8 @@ class Lexer:
             'DIM', 'CALL', 'ENTER', 'EXIT', 'ALL', 'POS',
             'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
             'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
-            'MOD', 'ROUND', 'FPT', 'IPT', 'EXECUTE'
+            'MOD', 'ROUND', 'FPT', 'IPT', 'EXECUTE', 'REMOVE',
+            'AND', 'OR', 'NOT', 'XOR'
         }
 
     def tokenize(self, text):

@@ -196,7 +196,8 @@ class ThoroughbredBasicInterpreter:
         # 1b. Handle built-in functions
         builtins = {'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
                     'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
-                    'MOD', 'ROUND', 'FPT', 'IPT'}
+                    'MOD', 'ROUND', 'FPT', 'IPT',
+                    'AND', 'OR', 'NOT', 'XOR'}
         
         if tokens[0].type in builtins and len(tokens) > 2 and tokens[1].type == 'LPAREN':
             close_idx = find_matching(1, 'LPAREN', 'RPAREN')
@@ -243,6 +244,29 @@ class ThoroughbredBasicInterpreter:
                     if code & 16: s = s.upper()
                     if code & 32: s = s.lower()
                     return s
+
+                # Bitwise String Functions
+                elif func in ('AND', 'OR', 'XOR', 'NOT'):
+                    s1 = str(val1)
+                    if func == 'NOT':
+                        # Bitwise NOT on each char (0-255 range usually)
+                        return "".join(chr(~ord(c) & 0xFF) for c in s1)
+                    else:
+                        s2 = str(eval_arg(1) or "")
+                        # Apply to min length? Or assume same length?
+                        # Thoroughbred usually does bitwise ops on corresponding chars.
+                        # If sizes differ, usually stops at shortest? Or pads?
+                        # Let's assume min length to be safe.
+                        length = min(len(s1), len(s2))
+                        res = []
+                        for i in range(length):
+                            c1 = ord(s1[i])
+                            c2 = ord(s2[i])
+                            if func == 'AND': r = c1 & c2
+                            elif func == 'OR':  r = c1 | c2
+                            elif func == 'XOR': r = c1 ^ c2
+                            res.append(chr(r))
+                        return "".join(res)
 
                 # Numeric Functions
                 try:
@@ -445,6 +469,84 @@ class ThoroughbredBasicInterpreter:
                     print(f"Runtime Error: {e}")
                 break
 
+    def _handle_assignment(self, tokens, var_offset):
+        # Determine if it's a simple assignment or indexed/substring
+        # LET A = val (offset 1)
+        # A = val (offset 0)
+
+        var_name = tokens[var_offset].value
+        idx_end = var_offset
+        params = []
+        open_type = None
+
+        if len(tokens) > var_offset + 1 and tokens[var_offset + 1].type in ('LPAREN', 'LBRACKET'):
+            open_type = tokens[var_offset + 1].type
+            close_type = 'RPAREN' if open_type == 'LPAREN' else 'RBRACKET'
+            # Find matching bracket
+            depth = 0
+            for i in range(var_offset + 1, len(tokens)):
+                if tokens[i].type == open_type: depth += 1
+                elif tokens[i].type == close_type:
+                    depth -= 1
+                    if depth == 0:
+                        idx_end = i
+                        # Parse params
+                        inner = tokens[var_offset + 2:i]
+                        curr = []
+                        for t in inner:
+                            if t.type == 'COMMA':
+                                if curr: params.append(self.evaluate_expression(curr))
+                                curr = []
+                            else: curr.append(t)
+                        if curr: params.append(self.evaluate_expression(curr))
+                        break
+
+        # Find '='
+        assign_idx = -1
+        for i in range(idx_end + 1, len(tokens)):
+            if tokens[i].type == 'ASSIGN':
+                assign_idx = i
+                break
+        
+        if assign_idx == -1:
+            # Not an assignment? Maybe syntax error or procedure call without CALL?
+            # For now ignore or raise
+             raise RuntimeError("Syntax error: missing '=' in assignment")
+
+        val = self.evaluate_expression(tokens[assign_idx+1:])
+
+        if open_type is None:
+            # Simple LET A = val
+            self.variables[var_name] = val
+        else:
+            var_val = self.variables.get(var_name)
+            if open_type == 'LPAREN':
+                if tokens[var_offset].type == 'ID_NUM':
+                    # Numeric Array Assignment A(i) = val
+                    if isinstance(var_val, list):
+                        idx = int(params[0])
+                        if 0 <= idx < len(var_val): var_val[idx] = val
+                else:
+                    # Substring Assignment S$(start, len) = val
+                    s = list(str(var_val)) if var_val is not None else []
+                    start = int(params[0]) - 1
+                    if len(params) > 1:
+                        length = int(params[1])
+                        val_str = str(val)[:length].ljust(length)
+                        s[start:start+length] = list(val_str)
+                    else:
+                        val_str = str(val)
+                        s[start:start+len(val_str)] = list(val_str)
+                    self.variables[var_name] = "".join(s)
+
+            elif open_type == 'LBRACKET':
+                # String Array Assignment S$[i] = val
+                if isinstance(var_val, list):
+                    idx = int(params[0])
+                    if 0 <= idx < len(var_val): var_val[idx] = val
+
+        self.current_line_idx += 1
+
     def _dispatch_statement(self, tokens):
         cmd = tokens[0].type
         
@@ -584,79 +686,10 @@ class ThoroughbredBasicInterpreter:
             self.current_line_idx += 1
 
         elif cmd == 'LET':
-            # Determine if it's a simple assignment or indexed/substring
-            # LET A = val
-            # LET A(idx) = val
-            # LET S$[idx] = val
-            # LET S$(start, len) = val
+            self._handle_assignment(tokens, 1)
 
-            var_name = tokens[1].value
-            idx_end = 1
-            params = []
-            open_type = None
-
-            if len(tokens) > 2 and tokens[2].type in ('LPAREN', 'LBRACKET'):
-                open_type = tokens[2].type
-                close_type = 'RPAREN' if open_type == 'LPAREN' else 'RBRACKET'
-                # Find matching bracket
-                depth = 0
-                for i in range(2, len(tokens)):
-                    if tokens[i].type == open_type: depth += 1
-                    elif tokens[i].type == close_type:
-                        depth -= 1
-                        if depth == 0:
-                            idx_end = i
-                            # Parse params
-                            inner = tokens[3:i]
-                            curr = []
-                            for t in inner:
-                                if t.type == 'COMMA':
-                                    if curr: params.append(self.evaluate_expression(curr))
-                                    curr = []
-                                else: curr.append(t)
-                            if curr: params.append(self.evaluate_expression(curr))
-                            break
-
-            # Find '='
-            assign_idx = -1
-            for i in range(idx_end + 1, len(tokens)):
-                if tokens[i].type == 'ASSIGN':
-                    assign_idx = i
-                    break
-
-            val = self.evaluate_expression(tokens[assign_idx+1:])
-
-            if open_type is None:
-                # Simple LET A = val
-                self.variables[var_name] = val
-            else:
-                var_val = self.variables.get(var_name)
-                if open_type == 'LPAREN':
-                    if tokens[1].type == 'ID_NUM':
-                        # Numeric Array Assignment A(i) = val
-                        if isinstance(var_val, list):
-                            idx = int(params[0])
-                            if 0 <= idx < len(var_val): var_val[idx] = val
-                    else:
-                        # Substring Assignment S$(start, len) = val
-                        s = list(str(var_val)) if var_val is not None else []
-                        start = int(params[0]) - 1
-                        if len(params) > 1:
-                            length = int(params[1])
-                            val_str = str(val)[:length].ljust(length)
-                            s[start:start+length] = list(val_str)
-                        else:
-                            val_str = str(val)
-                            s[start:start+len(val_str)] = list(val_str)
-                        self.variables[var_name] = "".join(s)
-
-                elif open_type == 'LBRACKET':
-                    # String Array Assignment S$[i] = val
-                    if isinstance(var_val, list):
-                        idx = int(params[0])
-                        if 0 <= idx < len(var_val): var_val[idx] = val
-
-            self.current_line_idx += 1
+        elif cmd in ('ID_NUM', 'ID_STR'):
+            self._handle_assignment(tokens, 0)
 
         elif cmd == 'DIM':
             # DIM A(10), S$(20), S$[10](20)
