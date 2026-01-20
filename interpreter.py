@@ -9,6 +9,8 @@ import random
 from file_manager import FileManager
 from lexer import Lexer, Token
 
+class ExecutionFinished(Exception): pass
+
 class ThoroughbredBasicInterpreter:
     def __init__(self, io_handler=None):
         self.context_stack = []
@@ -385,759 +387,858 @@ class ThoroughbredBasicInterpreter:
         return False
 
     def execute(self):
-        self.current_line_idx = 0
-        while self.current_line_idx < len(self.line_numbers):
+        while self.context_stack:
             try:
-                line_num = self.line_numbers[self.current_line_idx]
-                tokens = self.program[line_num]
+                # Check for infinite loop or max instructions? (not yet)
+                
+                # Get current line
+                ctx = self._curr()
+                if ctx['current_line_idx'] >= len(ctx['line_numbers']):
+                    # End of program in this context
+                    # Implicit END/EXIT behavior
+                    if len(self.context_stack) > 1:
+                        # Return from sub-program/CALL
+                        self.context_stack.pop()
+                        # Update caller's vars if needed (handled in EXIT usually, but implicit return?)
+                        # Implicit return usually doesn't write back vars unless EXIT/ENTER logic used?
+                        # Let's assume distinct contexts pop back.
+                        self.current_line_idx += 1
+                        continue
+                    else:
+                        break # End of main program
+
+                current_line_num = ctx['line_numbers'][ctx['current_line_idx']]
+                tokens = ctx['program'][current_line_num]
                 
                 if not tokens:
                     self.current_line_idx += 1
                     continue
-
-                cmd = tokens[0].type
                 
-                if cmd == 'PRINT':
-                    # Improved PRINT: comma/semicolon aware, but skips those inside () or []
-                    # Check for @(col, row)
-                    current_idx = 1
-                    if current_idx < len(tokens) and tokens[current_idx].type == 'AT':
-                        # Expect LPAREN, col, COMMA, row, RPAREN
-                        try:
-                            if tokens[current_idx+1].type == 'LPAREN':
-                                # Parse (col, row)
-                                paren_end = -1
-                                depth = 0
-                                for i in range(current_idx+1, len(tokens)):
-                                    if tokens[i].type == 'LPAREN': depth += 1
-                                    elif tokens[i].type == 'RPAREN': 
-                                        depth -= 1
-                                        if depth == 0: 
-                                            paren_end = i
-                                            break
-                                
-                                if paren_end != -1:
-                                    # Extract inside parens
-                                    inside = tokens[current_idx+2:paren_end]
-                                    # Split by comma
-                                    parts = []
-                                    curr = []
-                                    d = 0
-                                    for t in inside:
-                                        if t.type in ('LPAREN', 'LBRACKET'): d+=1
-                                        elif t.type in ('RPAREN', 'RBRACKET'): d-=1
-                                        if d==0 and t.type == 'COMMA':
-                                            parts.append(curr)
-                                            curr = []
-                                        else:
-                                            curr.append(t)
-                                    if curr: parts.append(curr)
-                                    
-                                    if len(parts) >= 2:
-                                        col = int(self.evaluate_expression(parts[0]))
-                                        row = int(self.evaluate_expression(parts[1]))
-                                        if self.io_handler:
-                                            self.io_handler.move_cursor(col, row)
-                                    
-                                    current_idx = paren_end + 1
-                        except Exception:
-                            pass # Fallback to normal print if parsing fails
-
-                    output = []
-                    current_expr = []
-                    depth = 0
-                    final_separator = None 
-
-                    for t in tokens[current_idx:]:
-                        if t.type == 'MNEMONIC':
-                            # Flush current expression if any
-                            if current_expr:
-                                val = str(self.evaluate_expression(current_expr))
-                                output.append(val)
-                                current_expr = []
-                            
-                            # Handle Mnemonic
-                            mnemonic = t.value[1:-1] # Strip quotes
-                            if self.io_handler:
-                                # Flush current output first
-                                if output:
-                                    text_out = " ".join(output)
-                                    self.io_handler.write(text_out)
-                                    output = []
-
-                    for t in tokens[current_idx:]:
-                        if t.type == 'MNEMONIC':
-                            # Flush current expression if any
-                            if current_expr:
-                                val = str(self.evaluate_expression(current_expr))
-                                output.append(val)
-                                current_expr = []
-                            
-                            # Handle Mnemonic
-                            mnemonic = t.value[1:-1] # Strip quotes
-                            if self.io_handler:
-                                # Flush current output first
-                                if output:
-                                    text_out = " ".join(output)
-                                    self.io_handler.write(text_out)
-                                    output = []
-
-                                if mnemonic == 'CS': self.io_handler.clear_screen()
-                                elif mnemonic == 'BR': self.io_handler.set_reverse(True)
-                                elif mnemonic == 'ER': self.io_handler.set_reverse(False)
-                                elif mnemonic == 'BU': self.io_handler.set_underline(True)
-                                elif mnemonic == 'EU': self.io_handler.set_underline(False)
-                                elif mnemonic == 'VT': self.io_handler.move_relative(0, -1)
-                                elif mnemonic == 'LF': self.io_handler.move_relative(0, 1)
-                                elif mnemonic == 'BS': self.io_handler.move_relative(-1, 0)
-                                elif mnemonic == 'CH': self.io_handler.move_cursor(0, 0) # Home
-                                elif mnemonic == 'CE': self.io_handler.clear_eos()
-                                elif mnemonic == 'CL': self.io_handler.clear_eol()
-                                elif mnemonic == 'LD': self.io_handler.delete_line()
-                            # Ignore unknown mnemonics or add more later
-                            
-                            final_separator = None 
-                            
-                        else:
-                            # Update depth for parens/brackets
-                            if t.type in ('LPAREN', 'LBRACKET'): 
-                                depth += 1
-                            elif t.type in ('RPAREN', 'RBRACKET'): 
-                                depth -= 1
-                            
-                            if depth == 0 and t.type in ('COMMA', 'SEMICOLON'):
-                                if current_expr:
-                                    val = str(self.evaluate_expression(current_expr))
-                                    output.append(val)
-                                    current_expr = []
-                                    
-                                # Handle spacing behavior
-                                final_separator = t.type
-                            else:
-                                current_expr.append(t)
-                                final_separator = None
-                            
-                    if current_expr:
-                        output.append(str(self.evaluate_expression(current_expr)))
-                    
-                    # Construct string
-                    text_out = " ".join(output)
-                    if self.io_handler:
-                        self.io_handler.write(text_out)
-                        if final_separator != 'SEMICOLON':
-                             self.io_handler.write("\n")
-                    else:
-                        # Fallback
-                        print(text_out, end="" if final_separator == 'SEMICOLON' else "\n")
-                        
-                    self.current_line_idx += 1
+                self._dispatch_statement(tokens)
                 
-                elif cmd == 'LET':
-                    # Determine if it's a simple assignment or indexed/substring
-                    # LET A = val
-                    # LET A(idx) = val
-                    # LET S$[idx] = val
-                    # LET S$(start, len) = val
-                    
-                    var_name = tokens[1].value
-                    idx_end = 1
-                    params = []
-                    open_type = None
+            except ExecutionFinished:
+                break
+            except Exception as e:
+                # Global error handling
+                if self.context_stack and self.line_numbers and self.current_line_idx < len(self.line_numbers):
+                    ln = self.line_numbers[self.current_line_idx]
+                    print(f"Runtime Error at line {ln}: {e}")
+                else:
+                    print(f"Runtime Error: {e}")
+                break
 
-                    if len(tokens) > 2 and tokens[2].type in ('LPAREN', 'LBRACKET'):
-                        open_type = tokens[2].type
-                        close_type = 'RPAREN' if open_type == 'LPAREN' else 'RBRACKET'
-                        # Find matching bracket
+    def _dispatch_statement(self, tokens):
+        cmd = tokens[0].type
+        
+        if cmd == 'PRINT':
+            # Improved PRINT: comma/semicolon aware, but skips those inside () or []
+            # Check for @(col, row)
+            current_idx = 1
+            if current_idx < len(tokens) and tokens[current_idx].type == 'AT':
+                # Expect LPAREN, col, COMMA, row, RPAREN
+                try:
+                    if tokens[current_idx+1].type == 'LPAREN':
+                        # Parse (col, row)
+                        paren_end = -1
                         depth = 0
-                        for i in range(2, len(tokens)):
-                            if tokens[i].type == open_type: depth += 1
-                            elif tokens[i].type == close_type:
+                        for i in range(current_idx+1, len(tokens)):
+                            if tokens[i].type == 'LPAREN': depth += 1
+                            elif tokens[i].type == 'RPAREN': 
                                 depth -= 1
-                                if depth == 0:
-                                    idx_end = i
-                                    # Parse params
-                                    inner = tokens[3:i]
-                                    curr = []
-                                    for t in inner:
-                                        if t.type == 'COMMA':
-                                            if curr: params.append(self.evaluate_expression(curr))
-                                            curr = []
-                                        else: curr.append(t)
-                                    if curr: params.append(self.evaluate_expression(curr))
+                                if depth == 0: 
+                                    paren_end = i
                                     break
 
-                    # Find '='
-                    assign_idx = -1
-                    for i in range(idx_end + 1, len(tokens)):
-                        if tokens[i].type == 'ASSIGN':
-                            assign_idx = i
-                            break
-                    
-                    val = self.evaluate_expression(tokens[assign_idx+1:])
-
-                    if open_type is None:
-                        # Simple LET A = val
-                        self.variables[var_name] = val
-                    else:
-                        var_val = self.variables.get(var_name)
-                        if open_type == 'LPAREN':
-                            if tokens[1].type == 'ID_NUM':
-                                # Numeric Array Assignment A(i) = val
-                                if isinstance(var_val, list):
-                                    idx = int(params[0])
-                                    if 0 <= idx < len(var_val): var_val[idx] = val
-                            else:
-                                # Substring Assignment S$(start, len) = val
-                                s = list(str(var_val)) if var_val is not None else []
-                                start = int(params[0]) - 1
-                                if len(params) > 1:
-                                    length = int(params[1])
-                                    val_str = str(val)[:length].ljust(length)
-                                    s[start:start+length] = list(val_str)
-                                else:
-                                    val_str = str(val)
-                                    s[start:start+len(val_str)] = list(val_str)
-                                self.variables[var_name] = "".join(s)
-                        
-                        elif open_type == 'LBRACKET':
-                            # String Array Assignment S$[i] = val
-                            if isinstance(var_val, list):
-                                idx = int(params[0])
-                                if 0 <= idx < len(var_val): var_val[idx] = val
-
-                    self.current_line_idx += 1
-                
-                elif cmd == 'DIM':
-                    # DIM A(10), S$(20), S$[10](20)
-                    idx = 1
-                    while idx < len(tokens):
-                        if tokens[idx].type == 'COMMA': idx += 1; continue
-                        var_name = tokens[idx].value
-                        var_type = tokens[idx].type
-                        idx += 1
-                        
-                        dims = []
-                        if idx < len(tokens) and tokens[idx].type in ('LPAREN', 'LBRACKET'):
-                            open_t = tokens[idx].type
-                            close_t = 'RPAREN' if open_t == 'LPAREN' else 'RBRACKET'
-                            
-                            # Find matching
-                            count = 0
-                            match_idx = -1
-                            for i in range(idx, len(tokens)):
-                                if tokens[i].type == open_t: count += 1
-                                elif tokens[i].type == close_t:
-                                    count -= 1
-                                    if count == 0: match_idx = i; break
-                            
-                            inner = tokens[idx+1:match_idx]
-                            # Correct parsing of dims (comma-aware)
+                        if paren_end != -1:
+                            # Extract inside parens
+                            inside = tokens[current_idx+2:paren_end]
+                            # Split by comma
+                            parts = []
                             curr = []
-                            d_depth = 0
+                            d = 0
+                            for t in inside:
+                                if t.type in ('LPAREN', 'LBRACKET'): d+=1
+                                elif t.type in ('RPAREN', 'RBRACKET'): d-=1
+                                if d==0 and t.type == 'COMMA':
+                                    parts.append(curr)
+                                    curr = []
+                                else:
+                                    curr.append(t)
+                            if curr: parts.append(curr)
+
+                            if len(parts) >= 2:
+                                col = int(self.evaluate_expression(parts[0]))
+                                row = int(self.evaluate_expression(parts[1]))
+                                if self.io_handler:
+                                    self.io_handler.move_cursor(col, row)
+
+                            current_idx = paren_end + 1
+                except Exception:
+                    pass # Fallback to normal print if parsing fails
+
+            output = []
+            current_expr = []
+            depth = 0
+            final_separator = None 
+
+            for t in tokens[current_idx:]:
+                if t.type == 'MNEMONIC':
+                    # Flush current expression if any
+                    if current_expr:
+                        val = str(self.evaluate_expression(current_expr))
+                        output.append(val)
+                        current_expr = []
+
+                    # Handle Mnemonic
+                    mnemonic = t.value[1:-1] # Strip quotes
+                    if self.io_handler:
+                        # Flush current output first
+                        if output:
+                            text_out = " ".join(output)
+                            self.io_handler.write(text_out)
+                            output = []
+
+            for t in tokens[current_idx:]:
+                if t.type == 'MNEMONIC':
+                    # Flush current expression if any
+                    if current_expr:
+                        val = str(self.evaluate_expression(current_expr))
+                        output.append(val)
+                        current_expr = []
+
+                    # Handle Mnemonic
+                    mnemonic = t.value[1:-1] # Strip quotes
+                    if self.io_handler:
+                        # Flush current output first
+                        if output:
+                            text_out = " ".join(output)
+                            self.io_handler.write(text_out)
+                            output = []
+
+                        if mnemonic == 'CS': self.io_handler.clear_screen()
+                        elif mnemonic == 'BR': self.io_handler.set_reverse(True)
+                        elif mnemonic == 'ER': self.io_handler.set_reverse(False)
+                        elif mnemonic == 'BU': self.io_handler.set_underline(True)
+                        elif mnemonic == 'EU': self.io_handler.set_underline(False)
+                        elif mnemonic == 'VT': self.io_handler.move_relative(0, -1)
+                        elif mnemonic == 'LF': self.io_handler.move_relative(0, 1)
+                        elif mnemonic == 'BS': self.io_handler.move_relative(-1, 0)
+                        elif mnemonic == 'CH': self.io_handler.move_cursor(0, 0) # Home
+                        elif mnemonic == 'CE': self.io_handler.clear_eos()
+                        elif mnemonic == 'CL': self.io_handler.clear_eol()
+                        elif mnemonic == 'LD': self.io_handler.delete_line()
+                    # Ignore unknown mnemonics or add more later
+
+                    final_separator = None 
+
+                else:
+                    # Update depth for parens/brackets
+                    if t.type in ('LPAREN', 'LBRACKET'): 
+                        depth += 1
+                    elif t.type in ('RPAREN', 'RBRACKET'): 
+                        depth -= 1
+
+                    if depth == 0 and t.type in ('COMMA', 'SEMICOLON'):
+                        if current_expr:
+                            val = str(self.evaluate_expression(current_expr))
+                            output.append(val)
+                            current_expr = []
+
+                        # Handle spacing behavior
+                        final_separator = t.type
+                    else:
+                        current_expr.append(t)
+                        final_separator = None
+
+            if current_expr:
+                output.append(str(self.evaluate_expression(current_expr)))
+
+            # Construct string
+            text_out = " ".join(output)
+            if self.io_handler:
+                self.io_handler.write(text_out)
+                if final_separator != 'SEMICOLON':
+                     self.io_handler.write("\n")
+            else:
+                # Fallback
+                print(text_out, end="" if final_separator == 'SEMICOLON' else "\n")
+
+            self.current_line_idx += 1
+
+        elif cmd == 'LET':
+            # Determine if it's a simple assignment or indexed/substring
+            # LET A = val
+            # LET A(idx) = val
+            # LET S$[idx] = val
+            # LET S$(start, len) = val
+
+            var_name = tokens[1].value
+            idx_end = 1
+            params = []
+            open_type = None
+
+            if len(tokens) > 2 and tokens[2].type in ('LPAREN', 'LBRACKET'):
+                open_type = tokens[2].type
+                close_type = 'RPAREN' if open_type == 'LPAREN' else 'RBRACKET'
+                # Find matching bracket
+                depth = 0
+                for i in range(2, len(tokens)):
+                    if tokens[i].type == open_type: depth += 1
+                    elif tokens[i].type == close_type:
+                        depth -= 1
+                        if depth == 0:
+                            idx_end = i
+                            # Parse params
+                            inner = tokens[3:i]
+                            curr = []
                             for t in inner:
-                                if t.type in ('LPAREN', 'LBRACKET'): d_depth += 1
-                                elif t.type in ('RPAREN', 'RBRACKET'): d_depth -= 1
-                                if d_depth == 0 and t.type == 'COMMA':
-                                    if curr: dims.append(int(self.evaluate_expression(curr)))
+                                if t.type == 'COMMA':
+                                    if curr: params.append(self.evaluate_expression(curr))
                                     curr = []
                                 else: curr.append(t)
-                            if curr: dims.append(int(self.evaluate_expression(curr)))
-                            
-                            idx = match_idx + 1
-                        
-                        # Check for secondary DIM (length for strings)
-                        str_len = None
-                        if var_type == 'ID_STR' and idx < len(tokens) and tokens[idx].type == 'LPAREN':
-                            match_idx = -1
-                            count = 0
-                            for i in range(idx, len(tokens)):
-                                if tokens[i].type == 'LPAREN': count += 1
-                                elif tokens[i].type == 'RPAREN':
-                                    count -= 1
-                                    if count == 0: match_idx = i; break
-                            
-                            inner = tokens[idx+1:match_idx]
-                            str_len = int(self.evaluate_expression(inner))
-                            idx = match_idx + 1
-
-                        # Initialize
-                        if var_type == 'ID_NUM':
-                            # Numeric Array: A(10) -> list of 11 zeros
-                            size = dims[0] + 1 if dims else 1
-                            self.variables[var_name] = [0] * size
-                        else:
-                            # String: S$(20) or S$[10](20)
-                            if dims:
-                                # String Array
-                                size = dims[0] + 1
-                                length = str_len if str_len else 24
-                                self.variables[var_name] = [" " * length] * size
-                            else:
-                                # Scalar String
-                                length = str_len if str_len else 24
-                                self.variables[var_name] = " " * length
-                    
-                    self.current_line_idx += 1
-                    
-                elif cmd == 'GOTO':
-                    try:
-                        target = int(float(tokens[1].value))
-                        if target in self.line_numbers:
-                            self.current_line_idx = self.line_numbers.index(target)
-                        else:
-                            raise RuntimeError(f"Undefined line number {target}")
-                    except ValueError:
-                        raise RuntimeError(f"Invalid line number {tokens[1].value}")
-
-                elif cmd == 'GOSUB':
-                    try:
-                        target = int(float(tokens[1].value))
-                        self.stack.append(self.current_line_idx + 1)
-                        if target in self.line_numbers:
-                            self.current_line_idx = self.line_numbers.index(target)
-                        else:
-                            raise RuntimeError(f"Undefined line number {target}")
-                    except ValueError:
-                        raise RuntimeError(f"Invalid line number {tokens[1].value}")
-
-                elif cmd == 'RETURN':
-                    if not self.stack:
-                        raise RuntimeError("RETURN without GOSUB")
-                    self.current_line_idx = self.stack.pop()
-
-                elif cmd == 'IF':
-                    # IF [expr] THEN [target]
-                    then_idx = -1
-                    for i, t in enumerate(tokens):
-                        if t.type == 'THEN':
-                            then_idx = i
+                            if curr: params.append(self.evaluate_expression(curr))
                             break
-                    
-                    condition_tokens = tokens[1:then_idx]
-                    target_tokens = tokens[then_idx+1:]
-                    
-                    cond_val = False
-                    if len(condition_tokens) == 3 and condition_tokens[1].type == 'ASSIGN':
-                        left = self.evaluate_expression([condition_tokens[0]])
-                        right = self.evaluate_expression([condition_tokens[2]])
-                        cond_val = (left == right)
-                    else:
-                        cond_val = bool(self.evaluate_expression(condition_tokens))
 
-                    if cond_val:
-                        if target_tokens[0].type == 'NUMBER':
-                            try:
-                                target = int(float(target_tokens[0].value))
-                                self.current_line_idx = self.line_numbers.index(target)
-                            except:
-                                self.current_line_idx += 1
-                        else:
-                            self.current_line_idx += 1
-                    else:
-                        self.current_line_idx += 1
-                
-                elif cmd == 'INPUT':
-                    prompt = ""
-                    var_token = None
-                    if tokens[1].type == 'STRING':
-                        prompt = tokens[1].value[1:-1]
-                        var_token = tokens[3] if len(tokens) > 3 else tokens[1]
-                    else:
-                        var_token = tokens[1]
-                    
-                    if self.io_handler:
-                        user_input = self.io_handler.input(prompt)
-                    else:
-                        user_input = input(prompt)
-
-                    if var_token.type == 'ID_NUM':
-                        try:
-                            self.variables[var_token.value] = float(user_input) if '.' in user_input else int(user_input)
-                        except ValueError:
-                            self.variables[var_token.value] = 0
-                    else:
-                        self.variables[var_token.value] = user_input
-                    self.current_line_idx += 1
-
-                elif cmd == 'FOR':
-                    var_name = tokens[1].value
-                    assign_idx = 2
-                    to_idx = -1
-                    for i, t in enumerate(tokens):
-                        if t.type == 'TO':
-                            to_idx = i
-                            break
-                    start_val = self.evaluate_expression(tokens[assign_idx+1:to_idx])
-                    step_idx = -1
-                    for i, t in enumerate(tokens):
-                        if t.type == 'STEP':
-                            step_idx = i
-                            break
-                    if step_idx != -1:
-                        end_val = self.evaluate_expression(tokens[to_idx+1:step_idx])
-                        step_val = self.evaluate_expression(tokens[step_idx+1:])
-                    else:
-                        end_val = self.evaluate_expression(tokens[to_idx+1:])
-                        step_val = 1
-                    self.variables[var_name] = start_val
-                    self.for_loops[var_name] = {'end': end_val, 'step': step_val, 'start_line_idx': self.current_line_idx + 1}
-                    self.current_line_idx += 1
-
-                elif cmd == 'NEXT':
-                    var_name = tokens[1].value
-                    if var_name not in self.for_loops: raise RuntimeError(f"NEXT without FOR: {var_name}")
-                    loop_info = self.for_loops[var_name]
-                    self.variables[var_name] += loop_info['step']
-                    if (loop_info['step'] > 0 and self.variables[var_name] <= loop_info['end']) or \
-                       (loop_info['step'] < 0 and self.variables[var_name] >= loop_info['end']):
-                        self.current_line_idx = loop_info['start_line_idx']
-                    else:
-                        del self.for_loops[var_name]
-                        self.current_line_idx += 1
-
-                elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'SELECT'):
-                    # Shared parsing for file commands
-                    options = {}
-                    idx = 0
-                    
-                    if cmd in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'):
-                        # Creation commands: DIRECT "filename", arg1, arg2 [, ERR=line]
-                        filename = tokens[1].value[1:-1]
-                        idx = 2
-                        args = []
-                        while idx < len(tokens):
-                            t = tokens[idx]
-                            if t.type == 'COMMA': idx += 1; continue
-                            if t.type == 'ERR':
-                                idx += 2; options['ERR'] = tokens[idx].value
-                            else:
-                                args.append(self.evaluate_expression([t]))
-                            idx += 1
-                        
-                        try:
-                            rec_len = args[1] if len(args) > 1 and cmd != 'SERIAL' else (args[0] if args else None)
-                            key_len = args[0] if len(args) > 0 and cmd != 'SERIAL' else None
-                            self.file_manager.create(filename, cmd, rec_len=rec_len, key_len=key_len)
-                            self.current_line_idx += 1
-                        except Exception as e:
-                            if not self._handle_file_error('ERR', options): raise e
-
-                    elif cmd == 'OPEN':
-                        idx = 1
-                        chn = 0
-                        if tokens[idx].type == 'LPAREN':
-                            chn = tokens[idx+1].value
-                            idx += 3
-                        filename = tokens[idx].value[1:-1]
-                        idx += 1
-                        file_type = None
-                        rec_len = None
-                        
-                        # Parse options (DIRECT, ERR= etc)
-                        while idx < len(tokens):
-                            t = tokens[idx]
-                            if t.type == 'COMMA': idx += 1; continue
-                            if t.type in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'): file_type = t.type
-                            elif t.type == 'ERR':
-                                idx += 2; options['ERR'] = tokens[idx].value
-                            elif t.type in ('IND', 'KEY'): # Still support for backwards compatibility or specific Thoroughbred syntax
-                                idx += 2; rec_len = tokens[idx].value
-                            idx += 1
-                        
-                        try:
-                            self.file_manager.open(chn, filename, file_type, rec_len)
-                            self.current_line_idx += 1
-                        except FileNotFoundError as e:
-                            if not self._handle_file_error('ERR', options):
-                                print(f"Runtime Error at line {line_num}: {e}")
-                                break # Stop execution if no ERR= handling
-                        except Exception as e:
-                            if not self._handle_file_error('ERR', options): raise e
-                    
-                    elif cmd == 'CLOSE':
-                        self.file_manager.close(tokens[2].value)
-                        self.current_line_idx += 1
-
-                    elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD'):
-                        chn = tokens[2].value
-                        idx = 3
-                        key, ind = None, None
-                        
-                        while idx < len(tokens) and tokens[idx].type != 'RPAREN':
-                            t = tokens[idx]
-                            if t.type in ('IND', 'KEY', 'ERR', 'DOM'):
-                                opt_type = t.type
-                                idx += 2
-                                val = self.evaluate_expression([tokens[idx]])
-                                if opt_type == 'IND': ind = val
-                                elif opt_type == 'KEY': key = val
-                                else: options[opt_type] = val
-                            idx += 1
-                        
-                        if idx < len(tokens) and tokens[idx].type == 'RPAREN': idx += 1
-                        if idx < len(tokens) and tokens[idx].type == 'COMMA': idx += 1
-
-                        jumped = False
-                        try:
-                            if cmd == 'WRITE':
-                                values = []
-                                current_expr = []
-                                while idx < len(tokens):
-                                    if tokens[idx].type == 'COMMA':
-                                        if current_expr: values.append(self.evaluate_expression(current_expr)); current_expr = []
-                                    else: current_expr.append(tokens[idx])
-                                    idx += 1
-                                if current_expr: values.append(self.evaluate_expression(current_expr))
-                                
-                                if key is not None or ind is not None:
-                                    existing = self.file_manager.read(chn, key=key, ind=ind)
-                                    if existing is not None and 'DOM' in options:
-                                        if self._handle_file_error('DOM', options): jumped = True
-                                
-                                if not jumped:
-                                    self.file_manager.write(chn, key=key, ind=ind, values=values)
-                            
-                            elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD'):
-                                if cmd in ('EXTRACT', 'EXTRACTRECORD'):
-                                    data = self.file_manager.extract(chn, key=key, ind=ind)
-                                else:
-                                    data = self.file_manager.read(chn, key=key, ind=ind)
-                                
-                                if data is None:
-                                    if self._handle_file_error('DOM', options): jumped = True
-                                    else: raise RuntimeError(f"Record not found on channel {chn}")
-                                
-                                if not jumped:
-                                    if cmd == 'EXTRACTRECORD':
-                                        var_tok = tokens[idx]
-                                        self.variables[var_tok.value] = "|".join(map(str, data))
-                                    else:
-                                        var_idx = 0
-                                        while idx < len(tokens):
-                                            t = tokens[idx]
-                                            if t.type in ('ID_NUM', 'ID_STR'):
-                                                if var_idx < len(data): self.variables[t.value] = data[var_idx]
-                                                var_idx += 1
-                                            idx += 1
-                            
-                            if not jumped:
-                                self.current_line_idx += 1
-                        except Exception as e:
-                            if not self._handle_file_error('ERR', options): raise e
-
-                    elif cmd == 'ERASE':
-                        filename = tokens[1].value[1:-1]
-                        idx = 2
-                        while idx < len(tokens):
-                            if tokens[idx].type == 'ERR':
-                                idx += 2; options['ERR'] = tokens[idx].value
-                            idx += 1
-                        try:
-                            self.file_manager.erase(filename)
-                            self.current_line_idx += 1
-                        except:
-                            if not self._handle_file_error('ERR', options): raise
-
-                    elif cmd == 'SELECT':
-                        # SELECT (chn) "pattern" [, ERR=line]
-                        idx = 1
-                        chn = 0
-                        if idx < len(tokens) and tokens[idx].type == 'LPAREN':
-                            chn = tokens[idx+1].value
-                            idx += 3
-                        
-                        pattern = tokens[idx].value[1:-1] if idx < len(tokens) and tokens[idx].type == 'STRING' else "*"
-                        idx += 1
-                        
-                        while idx < len(tokens):
-                            if tokens[idx].type == 'ERR':
-                                idx += 2; options['ERR'] = tokens[idx].value
-                            idx += 1
-                        
-                        try:
-                            # Implementation of SELECT: list files in basic_storage
-                            files = [f.replace('.json', '') for f in os.listdir(self.file_manager.storage_dir) if f.endswith('.json')]
-                            if pattern != "*":
-                                import fnmatch
-                                files = fnmatch.filter(files, pattern)
-                            
-                            # Create a virtual "SERIAL" file with the file list
-                            path = self.file_manager._get_path(f"_SELECT_{chn}")
-                            file_content = {
-                                "_metadata": {"type": "SERIAL", "rec_len": 128, "key_len": None},
-                                "records": {str(i): [f] for i, f in enumerate(sorted(files))}
-                            }
-                            # We don't actually save this to disk, or maybe we do temporarily?
-                            # Thoroughbred SELECT creates a list that can be READ.
-                            # Let's just mock it in FileManager as an open channel.
-                            self.file_manager.channels[chn] = {
-                                'type': 'SERIAL',
-                                'filename': f"_SELECT_{chn}",
-                                'data': file_content["records"],
-                                'metadata': file_content["_metadata"],
-                                'pos': 0
-                            }
-                            self.current_line_idx += 1
-                        except Exception as e:
-                            if not self._handle_file_error('ERR', options): raise e
-
-                elif cmd == 'CALL':
-                    # CALL prog$, [ERR=line], args...
-                    idx = 1
-                    prog_tokens = []
-                    while idx < len(tokens) and tokens[idx].type != 'COMMA':
-                        prog_tokens.append(tokens[idx])
-                        idx += 1
-                    
-                    prog_name = self.evaluate_expression(prog_tokens)
-                    if idx < len(tokens) and tokens[idx].type == 'COMMA': idx += 1
-                    
-                    options = {}
-                    args = [] # list of {value, var_name, is_all}
-                    
-                    while idx < len(tokens):
-                        if tokens[idx].type == 'COMMA': idx += 1; continue
-                        if tokens[idx].type == 'ERR':
-                            idx += 2; options['ERR'] = tokens[idx].value
-                            idx += 1
-                        else:
-                            # Parse arg
-                            arg_tokens = []
-                            expr_tokens = []
-                            is_all = False
-                            while idx < len(tokens) and tokens[idx].type != 'COMMA':
-                                if tokens[idx].type == 'ALL': 
-                                    is_all = True
-                                else: 
-                                    expr_tokens.append(tokens[idx])
-                                arg_tokens.append(tokens[idx]) # Keep for variable check
-                                idx += 1
-                            
-                            # If is_all, the expression is just the ID before the [ALL]
-                            if is_all:
-                                # A[ALL] -> expr is just [A]
-                                id_tokens = [t for t in expr_tokens if t.type in ('ID_NUM', 'ID_STR', 'LBRACKET', 'RBRACKET')]
-                                # Filter out brackets to get the base variable
-                                eval_tokens = [t for t in id_tokens if t.type not in ('LBRACKET', 'RBRACKET')]
-                                val = self.evaluate_expression(eval_tokens)
-                            else:
-                                val = self.evaluate_expression(expr_tokens)
-                            
-                            # Identify if it was a variable reference
-                            var_name = None
-                            if expr_tokens and expr_tokens[0].type in ('ID_NUM', 'ID_STR'):
-                                if len(expr_tokens) == 1:
-                                    var_name = expr_tokens[0].value
-                                elif is_all:
-                                    var_name = expr_tokens[0].value
-
-                            args.append({'value': val, 'var_name': var_name, 'is_all': is_all})
-                    
-                    # Search for program
-                    # Search for program
-                    filename = prog_name + ".bas"
-                    if not os.path.exists(filename):
-                        # Try tests directory
-                        test_filename = os.path.join("tests", filename)
-                        if os.path.exists(test_filename):
-                            filename = test_filename
-                        elif not self._handle_file_error('ERR', options):
-                            raise RuntimeError(f"ERR=12: Program not found: {filename}")
-                        else:
-                             continue
-                    
-                    # Load and execute
-                    with open(filename, 'r') as f:
-                        source = f.read()
-                    
-                    # Create temporary interpreter to parse
-                    temp_int = ThoroughbredBasicInterpreter()
-                    temp_int.load_program(source)
-                    
-                    if len(self.context_stack) >= 127:
-                        raise RuntimeError("ERR=127: Maximum CALL nesting exceeded")
-                    
-                    self._push_context(temp_int.program, temp_int.line_numbers, passed_args=args)
-                    continue
-
-                elif cmd == 'ENTER':
-                    curr = self._curr()
-                    passed = curr['passed_args']
-                    idx = 1
-                    arg_idx = 0
-                    
-                    if len(tokens) == 1:
-                        if len(self.context_stack) > 1:
-                            caller_vars = self.context_stack[-2]['variables']
-                            curr['variables'].update(caller_vars)
-                            for k in caller_vars:
-                                curr['caller_refs'][k] = {'var_name': k, 'is_all': True}
-                    else:
-                        while idx < len(tokens):
-                            if tokens[idx].type == 'COMMA': idx += 1; continue
-                            
-                            var_name = tokens[idx].value
-                            is_all = False
-                            idx += 1
-                            if idx < len(tokens) and tokens[idx].type == 'LBRACKET':
-                                # Skip [ ALL ] or [ idx ]
-                                depth = 0
-                                for i in range(idx, len(tokens)):
-                                    if tokens[i].type == 'LBRACKET': depth += 1
-                                    elif tokens[i].type == 'RBRACKET':
-                                        depth -= 1
-                                        if depth == 0:
-                                            # Check if ALL was inside
-                                            for t in tokens[idx:i]:
-                                                if t.type == 'ALL': is_all = True
-                                            idx = i + 1
-                                            break
-                            
-                            if arg_idx < len(passed):
-                                arg = passed[arg_idx]
-                                curr['variables'][var_name] = arg['value']
-                                if arg['var_name']:
-                                    curr['caller_refs'][var_name] = {'var_name': arg['var_name'], 'is_all': arg['is_all'] or is_all}
-                                arg_idx += 1
-                        
-                    self.current_line_idx += 1
-                
-                elif cmd == 'EXIT':
-                    if len(self.context_stack) <= 1:
-                        break # Top-level EXIT acts like END
-                    
-                    curr = self.context_stack.pop()
-                    caller_refs = curr['caller_refs']
-                    caller_ctx = self._curr()
-                    
-                    # Write back values
-                    for local_name, ref in caller_refs.items():
-                        if ref['var_name']:
-                            val = curr['variables'].get(local_name)
-                            caller_ctx['variables'][ref['var_name']] = val
-                    
-                    self.current_line_idx += 1
-                    continue
-
-                elif cmd == 'END':
-                    if len(self.context_stack) > 1:
-                        # END in sub-program acts like EXIT but maybe without write-back?
-                        # Thoroughbred usually suggests EXIT for return. 
-                        # Let's follow EXIT logic but maybe END just pops.
-                        self.context_stack.pop()
-                        self.current_line_idx += 1
-                        continue
-                        
-                    for chn in list(self.file_manager.channels.keys()): self.file_manager.close(chn)
+            # Find '='
+            assign_idx = -1
+            for i in range(idx_end + 1, len(tokens)):
+                if tokens[i].type == 'ASSIGN':
+                    assign_idx = i
                     break
-                    
+
+            val = self.evaluate_expression(tokens[assign_idx+1:])
+
+            if open_type is None:
+                # Simple LET A = val
+                self.variables[var_name] = val
+            else:
+                var_val = self.variables.get(var_name)
+                if open_type == 'LPAREN':
+                    if tokens[1].type == 'ID_NUM':
+                        # Numeric Array Assignment A(i) = val
+                        if isinstance(var_val, list):
+                            idx = int(params[0])
+                            if 0 <= idx < len(var_val): var_val[idx] = val
+                    else:
+                        # Substring Assignment S$(start, len) = val
+                        s = list(str(var_val)) if var_val is not None else []
+                        start = int(params[0]) - 1
+                        if len(params) > 1:
+                            length = int(params[1])
+                            val_str = str(val)[:length].ljust(length)
+                            s[start:start+length] = list(val_str)
+                        else:
+                            val_str = str(val)
+                            s[start:start+len(val_str)] = list(val_str)
+                        self.variables[var_name] = "".join(s)
+
+                elif open_type == 'LBRACKET':
+                    # String Array Assignment S$[i] = val
+                    if isinstance(var_val, list):
+                        idx = int(params[0])
+                        if 0 <= idx < len(var_val): var_val[idx] = val
+
+            self.current_line_idx += 1
+
+        elif cmd == 'DIM':
+            # DIM A(10), S$(20), S$[10](20)
+            idx = 1
+            while idx < len(tokens):
+                if tokens[idx].type == 'COMMA': idx += 1; continue
+                var_name = tokens[idx].value
+                var_type = tokens[idx].type
+                idx += 1
+
+                dims = []
+                if idx < len(tokens) and tokens[idx].type in ('LPAREN', 'LBRACKET'):
+                    open_t = tokens[idx].type
+                    close_t = 'RPAREN' if open_t == 'LPAREN' else 'RBRACKET'
+
+                    # Find matching
+                    count = 0
+                    match_idx = -1
+                    for i in range(idx, len(tokens)):
+                        if tokens[i].type == open_t: count += 1
+                        elif tokens[i].type == close_t:
+                            count -= 1
+                            if count == 0: match_idx = i; break
+
+                    inner = tokens[idx+1:match_idx]
+                    # Correct parsing of dims (comma-aware)
+                    curr = []
+                    d_depth = 0
+                    for t in inner:
+                        if t.type in ('LPAREN', 'LBRACKET'): d_depth += 1
+                        elif t.type in ('RPAREN', 'RBRACKET'): d_depth -= 1
+                        if d_depth == 0 and t.type == 'COMMA':
+                            if curr: dims.append(int(self.evaluate_expression(curr)))
+                            curr = []
+                        else: curr.append(t)
+                    if curr: dims.append(int(self.evaluate_expression(curr)))
+
+                    idx = match_idx + 1
+
+                # Check for secondary DIM (length for strings)
+                str_len = None
+                if var_type == 'ID_STR' and idx < len(tokens) and tokens[idx].type == 'LPAREN':
+                    match_idx = -1
+                    count = 0
+                    for i in range(idx, len(tokens)):
+                        if tokens[i].type == 'LPAREN': count += 1
+                        elif tokens[i].type == 'RPAREN':
+                            count -= 1
+                            if count == 0: match_idx = i; break
+
+                    inner = tokens[idx+1:match_idx]
+                    str_len = int(self.evaluate_expression(inner))
+                    idx = match_idx + 1
+
+                # Initialize
+                if var_type == 'ID_NUM':
+                    # Numeric Array: A(10) -> list of 11 zeros
+                    size = dims[0] + 1 if dims else 1
+                    self.variables[var_name] = [0] * size
+                else:
+                    # String: S$(20) or S$[10](20)
+                    if dims:
+                        # String Array
+                        size = dims[0] + 1
+                        length = str_len if str_len else 24
+                        self.variables[var_name] = [" " * length] * size
+                    else:
+                        # Scalar String
+                        length = str_len if str_len else 24
+                        self.variables[var_name] = " " * length
+
+            self.current_line_idx += 1
+
+        elif cmd == 'GOTO':
+            try:
+                target = int(float(tokens[1].value))
+                if target in self.line_numbers:
+                    self.current_line_idx = self.line_numbers.index(target)
+                else:
+                    raise RuntimeError(f"Undefined line number {target}")
+            except ValueError:
+                raise RuntimeError(f"Invalid line number {tokens[1].value}")
+
+        elif cmd == 'GOSUB':
+            try:
+                target = int(float(tokens[1].value))
+                self.stack.append(self.current_line_idx + 1)
+                if target in self.line_numbers:
+                    self.current_line_idx = self.line_numbers.index(target)
+                else:
+                    raise RuntimeError(f"Undefined line number {target}")
+            except ValueError:
+                raise RuntimeError(f"Invalid line number {tokens[1].value}")
+
+        elif cmd == 'RETURN':
+            if not self.stack:
+                raise RuntimeError("RETURN without GOSUB")
+            self.current_line_idx = self.stack.pop()
+
+        elif cmd == 'IF':
+            # IF [expr] THEN [target]
+            then_idx = -1
+            for i, t in enumerate(tokens):
+                if t.type == 'THEN':
+                    then_idx = i
+                    break
+
+            condition_tokens = tokens[1:then_idx]
+            target_tokens = tokens[then_idx+1:]
+
+            cond_val = False
+            if len(condition_tokens) == 3 and condition_tokens[1].type == 'ASSIGN':
+                left = self.evaluate_expression([condition_tokens[0]])
+                right = self.evaluate_expression([condition_tokens[2]])
+                cond_val = (left == right)
+            else:
+                cond_val = bool(self.evaluate_expression(condition_tokens))
+
+            if cond_val:
+                if target_tokens[0].type == 'NUMBER':
+                    try:
+                        target = int(float(target_tokens[0].value))
+                        self.current_line_idx = self.line_numbers.index(target)
+                    except:
+                        self.current_line_idx += 1
                 else:
                     self.current_line_idx += 1
+            else:
+                self.current_line_idx += 1
 
-            except Exception as e:
-                # Global error handling (can be expanded)
-                print(f"Runtime Error at line {self.line_numbers[self.current_line_idx]}: {e}")
-                break
+        elif cmd == 'INPUT':
+            prompt = ""
+            var_token = None
+            if tokens[1].type == 'STRING':
+                prompt = tokens[1].value[1:-1]
+                var_token = tokens[3] if len(tokens) > 3 else tokens[1]
+            else:
+                var_token = tokens[1]
+
+            if self.io_handler:
+                user_input = self.io_handler.input(prompt)
+            else:
+                user_input = input(prompt)
+
+            if var_token.type == 'ID_NUM':
+                try:
+                    self.variables[var_token.value] = float(user_input) if '.' in user_input else int(user_input)
+                except ValueError:
+                    self.variables[var_token.value] = 0
+            else:
+                self.variables[var_token.value] = user_input
+            self.current_line_idx += 1
+
+        elif cmd == 'FOR':
+            var_name = tokens[1].value
+            assign_idx = 2
+            to_idx = -1
+            for i, t in enumerate(tokens):
+                if t.type == 'TO':
+                    to_idx = i
+                    break
+            start_val = self.evaluate_expression(tokens[assign_idx+1:to_idx])
+            step_idx = -1
+            for i, t in enumerate(tokens):
+                if t.type == 'STEP':
+                    step_idx = i
+                    break
+            if step_idx != -1:
+                end_val = self.evaluate_expression(tokens[to_idx+1:step_idx])
+                step_val = self.evaluate_expression(tokens[step_idx+1:])
+            else:
+                end_val = self.evaluate_expression(tokens[to_idx+1:])
+                step_val = 1
+            self.variables[var_name] = start_val
+            self.for_loops[var_name] = {'end': end_val, 'step': step_val, 'start_line_idx': self.current_line_idx + 1}
+            self.current_line_idx += 1
+
+        elif cmd == 'NEXT':
+            var_name = tokens[1].value
+            if var_name not in self.for_loops: raise RuntimeError(f"NEXT without FOR: {var_name}")
+            loop_info = self.for_loops[var_name]
+            self.variables[var_name] += loop_info['step']
+            if (loop_info['step'] > 0 and self.variables[var_name] <= loop_info['end']) or \
+               (loop_info['step'] < 0 and self.variables[var_name] >= loop_info['end']):
+                self.current_line_idx = loop_info['start_line_idx']
+            else:
+                del self.for_loops[var_name]
+                self.current_line_idx += 1
+
+        elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'SELECT'):
+            # Shared parsing for file commands
+            options = {}
+            idx = 0
+
+            if cmd in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'):
+                # Creation commands: DIRECT "filename", arg1, arg2 [, ERR=line]
+                filename = tokens[1].value[1:-1]
+                idx = 2
+                args = []
+                while idx < len(tokens):
+                    t = tokens[idx]
+                    if t.type == 'COMMA': idx += 1; continue
+                    if t.type == 'ERR':
+                        idx += 2; options['ERR'] = tokens[idx].value
+                    else:
+                        args.append(self.evaluate_expression([t]))
+                    idx += 1
+
+                try:
+                    rec_len = args[1] if len(args) > 1 and cmd != 'SERIAL' else (args[0] if args else None)
+                    key_len = args[0] if len(args) > 0 and cmd != 'SERIAL' else None
+                    self.file_manager.create(filename, cmd, rec_len=rec_len, key_len=key_len)
+                    self.current_line_idx += 1
+                except Exception as e:
+                    if not self._handle_file_error('ERR', options): raise e
+
+            elif cmd == 'OPEN':
+                idx = 1
+                chn = 0
+                if tokens[idx].type == 'LPAREN':
+                    chn = tokens[idx+1].value
+                    idx += 3
+                filename = tokens[idx].value[1:-1]
+                idx += 1
+                file_type = None
+                rec_len = None
+
+                # Parse options (DIRECT, ERR= etc)
+                while idx < len(tokens):
+                    t = tokens[idx]
+                    if t.type == 'COMMA': idx += 1; continue
+                    if t.type in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'): file_type = t.type
+                    elif t.type == 'ERR':
+                        idx += 2; options['ERR'] = tokens[idx].value
+                    elif t.type in ('IND', 'KEY'): # Still support for backwards compatibility or specific Thoroughbred syntax
+                        idx += 2; rec_len = tokens[idx].value
+                    idx += 1
+
+                try:
+                    self.file_manager.open(chn, filename, file_type, rec_len)
+                    self.current_line_idx += 1
+                except FileNotFoundError as e:
+                    if not self._handle_file_error('ERR', options):
+                        print(f"Runtime Error at line {self.line_numbers[self.current_line_idx]}: {e}")
+                        raise ExecutionFinished() # Stop execution if no ERR= handling
+                except Exception as e:
+                    if not self._handle_file_error('ERR', options): raise e
+
+            elif cmd == 'CLOSE':
+                self.file_manager.close(tokens[2].value)
+                self.current_line_idx += 1
+
+            elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD'):
+                chn = tokens[2].value
+                idx = 3
+                key, ind = None, None
+
+                while idx < len(tokens) and tokens[idx].type != 'RPAREN':
+                    t = tokens[idx]
+                    if t.type in ('IND', 'KEY', 'ERR', 'DOM'):
+                        opt_type = t.type
+                        idx += 2
+                        val = self.evaluate_expression([tokens[idx]])
+                        if opt_type == 'IND': ind = val
+                        elif opt_type == 'KEY': key = val
+                        else: options[opt_type] = val
+                    idx += 1
+
+                if idx < len(tokens) and tokens[idx].type == 'RPAREN': idx += 1
+                if idx < len(tokens) and tokens[idx].type == 'COMMA': idx += 1
+
+                jumped = False
+                try:
+                    if cmd == 'WRITE':
+                        values = []
+                        current_expr = []
+                        while idx < len(tokens):
+                            if tokens[idx].type == 'COMMA':
+                                if current_expr: values.append(self.evaluate_expression(current_expr)); current_expr = []
+                            else: current_expr.append(tokens[idx])
+                            idx += 1
+                        if current_expr: values.append(self.evaluate_expression(current_expr))
+
+                        if key is not None or ind is not None:
+                            existing = self.file_manager.read(chn, key=key, ind=ind)
+                            if existing is not None and 'DOM' in options:
+                                if self._handle_file_error('DOM', options): jumped = True
+
+                        if not jumped:
+                            self.file_manager.write(chn, key=key, ind=ind, values=values)
+
+                    elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD'):
+                        if cmd in ('EXTRACT', 'EXTRACTRECORD'):
+                            data = self.file_manager.extract(chn, key=key, ind=ind)
+                        else:
+                            data = self.file_manager.read(chn, key=key, ind=ind)
+
+                        if data is None:
+                            if self._handle_file_error('DOM', options): jumped = True
+                            else: raise RuntimeError(f"Record not found on channel {chn}")
+
+                        if not jumped:
+                            if cmd == 'EXTRACTRECORD':
+                                var_tok = tokens[idx]
+                                self.variables[var_tok.value] = "|".join(map(str, data))
+                            else:
+                                var_idx = 0
+                                while idx < len(tokens):
+                                    t = tokens[idx]
+                                    if t.type in ('ID_NUM', 'ID_STR'):
+                                        if var_idx < len(data): self.variables[t.value] = data[var_idx]
+                                        var_idx += 1
+                                    idx += 1
+
+                    if not jumped:
+                        self.current_line_idx += 1
+                except Exception as e:
+                    if not self._handle_file_error('ERR', options): raise e
+
+            elif cmd == 'ERASE':
+                filename = tokens[1].value[1:-1]
+                idx = 2
+                while idx < len(tokens):
+                    if tokens[idx].type == 'ERR':
+                        idx += 2; options['ERR'] = tokens[idx].value
+                    idx += 1
+                try:
+                    self.file_manager.erase(filename)
+                    self.current_line_idx += 1
+                except:
+                    if not self._handle_file_error('ERR', options): raise
+
+            elif cmd == 'SELECT':
+                # SELECT (chn) "pattern" [, ERR=line]
+                idx = 1
+                chn = 0
+                if idx < len(tokens) and tokens[idx].type == 'LPAREN':
+                    chn = tokens[idx+1].value
+                    idx += 3
+
+                pattern = tokens[idx].value[1:-1] if idx < len(tokens) and tokens[idx].type == 'STRING' else "*"
+                idx += 1
+
+                while idx < len(tokens):
+                    if tokens[idx].type == 'ERR':
+                        idx += 2; options['ERR'] = tokens[idx].value
+                    idx += 1
+
+                try:
+                    # Implementation of SELECT: list files in basic_storage
+                    files = [f.replace('.json', '') for f in os.listdir(self.file_manager.storage_dir) if f.endswith('.json')]
+                    if pattern != "*":
+                        import fnmatch
+                        files = fnmatch.filter(files, pattern)
+
+                    # Create a virtual "SERIAL" file with the file list
+                    path = self.file_manager._get_path(f"_SELECT_{chn}")
+                    file_content = {
+                        "_metadata": {"type": "SERIAL", "rec_len": 128, "key_len": None},
+                        "records": {str(i): [f] for i, f in enumerate(sorted(files))}
+                    }
+                    # We don't actually save this to disk, or maybe we do temporarily?
+                    # Thoroughbred SELECT creates a list that can be READ.
+                    # Let's just mock it in FileManager as an open channel.
+                    self.file_manager.channels[chn] = {
+                        'type': 'SERIAL',
+                        'filename': f"_SELECT_{chn}",
+                        'data': file_content["records"],
+                        'metadata': file_content["_metadata"],
+                        'pos': 0
+                    }
+                    self.current_line_idx += 1
+                except Exception as e:
+                    if not self._handle_file_error('ERR', options): raise e
+
+        elif cmd == 'CALL':
+            # CALL prog$, [ERR=line], args...
+            idx = 1
+            prog_tokens = []
+            while idx < len(tokens) and tokens[idx].type != 'COMMA':
+                prog_tokens.append(tokens[idx])
+                idx += 1
+
+            prog_name = self.evaluate_expression(prog_tokens)
+            if idx < len(tokens) and tokens[idx].type == 'COMMA': idx += 1
+
+            options = {}
+            args = [] # list of {value, var_name, is_all}
+
+            while idx < len(tokens):
+                if tokens[idx].type == 'COMMA': idx += 1; continue
+                if tokens[idx].type == 'ERR':
+                    idx += 2; options['ERR'] = tokens[idx].value
+                    idx += 1
+                else:
+                    # Parse arg
+                    arg_tokens = []
+                    expr_tokens = []
+                    is_all = False
+                    while idx < len(tokens) and tokens[idx].type != 'COMMA':
+                        if tokens[idx].type == 'ALL': 
+                            is_all = True
+                        else: 
+                            expr_tokens.append(tokens[idx])
+                        arg_tokens.append(tokens[idx]) # Keep for variable check
+                        idx += 1
+
+                    # If is_all, the expression is just the ID before the [ALL]
+                    if is_all:
+                        # A[ALL] -> expr is just [A]
+                        id_tokens = [t for t in expr_tokens if t.type in ('ID_NUM', 'ID_STR', 'LBRACKET', 'RBRACKET')]
+                        # Filter out brackets to get the base variable
+                        eval_tokens = [t for t in id_tokens if t.type not in ('LBRACKET', 'RBRACKET')]
+                        val = self.evaluate_expression(eval_tokens)
+                    else:
+                        val = self.evaluate_expression(expr_tokens)
+
+                    # Identify if it was a variable reference
+                    var_name = None
+                    if expr_tokens and expr_tokens[0].type in ('ID_NUM', 'ID_STR'):
+                        if len(expr_tokens) == 1:
+                            var_name = expr_tokens[0].value
+                        elif is_all:
+                            var_name = expr_tokens[0].value
+
+                    args.append({'value': val, 'var_name': var_name, 'is_all': is_all})
+
+            # Search for program
+            # Search for program
+            filename = prog_name + ".bas"
+            if not os.path.exists(filename):
+                # Try tests directory
+                test_filename = os.path.join("tests", filename)
+                if os.path.exists(test_filename):
+                    filename = test_filename
+                elif not self._handle_file_error('ERR', options):
+                    raise RuntimeError(f"ERR=12: Program not found: {filename}")
+                else:
+                     return
+
+            # Load and execute
+            with open(filename, 'r') as f:
+                source = f.read()
+
+            # Create temporary interpreter to parse
+            temp_int = ThoroughbredBasicInterpreter()
+            temp_int.load_program(source)
+
+            if len(self.context_stack) >= 127:
+                raise RuntimeError("ERR=127: Maximum CALL nesting exceeded")
+
+            self._push_context(temp_int.program, temp_int.line_numbers, passed_args=args)
+            return
+
+        elif cmd == 'EXECUTE':
+            # Syntax: EXECUTE string-value [,OPT="LOCAL"]
+            expr_tokens = []
+            idx = 1
+            # Parse string expression
+            while idx < len(tokens) and tokens[idx].type != 'COMMA':
+                expr_tokens.append(tokens[idx])
+                idx += 1
+
+            exec_str_val = str(self.evaluate_expression(expr_tokens))
+
+            opt_local = False
+            if idx < len(tokens) and tokens[idx].type == 'COMMA':
+                idx += 1
+                # Parse OPT="LOCAL"
+                # Expect: ID_NUM(OPT) ASSIGN STRING("LOCAL")
+                if idx + 2 < len(tokens) and \
+                   tokens[idx].type == 'ID_NUM' and tokens[idx].value == 'OPT' and \
+                   tokens[idx+1].type == 'ASSIGN' and \
+                   tokens[idx+2].type == 'STRING' and tokens[idx+2].value == '"LOCAL"':
+                    opt_local = True
+                else:
+                    # Loose parsing check or error?
+                    pass
+
+            # Analyze the string value
+            # Does it start with a number?
+            match = re.match(r'^\s*(\d+)\s*(.*)', exec_str_val)
+            if match:
+                # It is a program line: "10 PRINT 'HI'"
+                line_num = int(match.group(1))
+                line_content = match.group(2)
+
+                # Tokenize the content
+                new_tokens = list(self.lexer.tokenize(line_content))
+
+                # Determine context
+                # OPT="LOCAL" -> current context (self._curr()['program'])
+                # Default -> main running program (self.context_stack[0]['program'])
+                target_ctx = self._curr() if opt_local else self.context_stack[0]
+                target_prog = target_ctx['program']
+
+                if not line_content.strip():
+                    # Deletion: "10" (empty content usually implies delete in simple editors, 
+                    # but EXECUTE "10" usually needs content to update, unless empty string implies delete?
+                    # Thoroughbred docs say: "inserts the program line". 
+                    # If content is empty/rem-only, it replaces. 
+                    # If we assume standard basic editing, empty line deletes.
+                    # But here we just set it.
+                    if line_num in target_prog:
+                        del target_prog[line_num]
+                else:
+                    target_prog[line_num] = new_tokens
+
+                # IMPORTANT: We must update line_numbers list for that context
+                target_ctx['line_numbers'] = sorted(target_prog.keys())
+                
+                # Since we modified program, we just move to next line
+                self.current_line_idx += 1
+                
+            else:
+                # Immediate execution: "PRINT 'HI'"
+                # "treated as if typed in Console Mode"
+                
+                exec_tokens = list(self.lexer.tokenize(exec_str_val))
+                if exec_tokens:
+                    # Recursive dispatch
+                    self._dispatch_statement(exec_tokens)
+                else:
+                    # Empty string -> just move on
+                    self.current_line_idx += 1
+
+        elif cmd == 'ENTER':
+            curr = self._curr()
+            passed = curr['passed_args']
+            idx = 1
+            arg_idx = 0
+
+            if len(tokens) == 1:
+                if len(self.context_stack) > 1:
+                    caller_vars = self.context_stack[-2]['variables']
+                    curr['variables'].update(caller_vars)
+                    for k in caller_vars:
+                        curr['caller_refs'][k] = {'var_name': k, 'is_all': True}
+            else:
+                while idx < len(tokens):
+                    if tokens[idx].type == 'COMMA': idx += 1; continue
+
+                    var_name = tokens[idx].value
+                    is_all = False
+                    idx += 1
+                    if idx < len(tokens) and tokens[idx].type == 'LBRACKET':
+                        # Skip [ ALL ] or [ idx ]
+                        depth = 0
+                        for i in range(idx, len(tokens)):
+                            if tokens[i].type == 'LBRACKET': depth += 1
+                            elif tokens[i].type == 'RBRACKET':
+                                depth -= 1
+                                if depth == 0:
+                                    # Check if ALL was inside
+                                    for t in tokens[idx:i]:
+                                        if t.type == 'ALL': is_all = True
+                                    idx = i + 1
+                                    break
+
+                    if arg_idx < len(passed):
+                        arg = passed[arg_idx]
+                        curr['variables'][var_name] = arg['value']
+                        if arg['var_name']:
+                            curr['caller_refs'][var_name] = {'var_name': arg['var_name'], 'is_all': arg['is_all'] or is_all}
+                        arg_idx += 1
+
+            self.current_line_idx += 1
+
+        elif cmd == 'EXIT':
+            if len(self.context_stack) <= 1:
+                raise ExecutionFinished() # Top-level EXIT acts like END
+            
+            curr = self.context_stack.pop()
+            caller_refs = curr['caller_refs']
+            caller_ctx = self._curr()
+            
+            # Write back values
+            for local_name, ref in caller_refs.items():
+                if ref['var_name']:
+                    val = curr['variables'].get(local_name)
+                    caller_ctx['variables'][ref['var_name']] = val
+            
+            self.current_line_idx += 1
+            return
+
+        elif cmd == 'END':
+            if len(self.context_stack) > 1:
+                # END in sub-program acts like EXIT but maybe without write-back?
+                # Thoroughbred usually suggests EXIT for return. 
+                # Let's follow EXIT logic but maybe END just pops.
+                self.context_stack.pop()
+                self.current_line_idx += 1
+                return
+                
+            for chn in list(self.file_manager.channels.keys()): self.file_manager.close(chn)
+            raise ExecutionFinished()
+
+        else:
+            self.current_line_idx += 1
+
 
 if __name__ == "__main__":
     code = """

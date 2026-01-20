@@ -102,6 +102,7 @@ python3 basic.py mijn_programma.bas
 | `SIN/COS/TAN`| Goniometrie: `SIN(0.5)`, `ATN(1)` |
 | `LOG/EXP` | Logaritmen: `LOG(10)`, `EXP(1)` |
 | `SQR` | Wortel: `SQR(16)` -> 4 |
+| `EXECUTE` | Dynamic code: `EXECUTE "PRINT 'HI'"` |
 
 ## 📟 Commando's en Mnemonics in `PRINT`
 De interpreter ondersteunt nu ook terminal mnemonics voor geavanceerde schermsturing.
