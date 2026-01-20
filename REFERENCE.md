@@ -70,6 +70,7 @@ Voert een bitwise AND uit op de ASCII-waarden van de karakters in beide strings.
 ### ATN
 **Syntax:** `ATN(num)`  
 Geeft de arctangens van een getal (in radialen).
+- `ATN(1)` -> `0.785...` (pi/4)
 
 ---
 
@@ -80,8 +81,8 @@ Geeft de arctangens van een getal (in radialen).
 Roept een extern sub-programma aan met optionele argumenten.
 **Effect:**
 - Start een nieuwe interpreter context, pusht variabelen en keert terug na `EXIT` of `END`.
-**Side Effects:**
 - Variabelen worden "by value" gekopieerd (tenzij `ENTER`/`EXIT` data terugschrijven).
+- `CALL "subprog", A, B`
 
 ### CHR$
 **Syntax:** `CHR$(code)`  
@@ -91,22 +92,21 @@ Geeft het karakter dat overeenkomt met de opgegeven ASCII-code.
 ### CLOSE
 **Syntax:** `CLOSE (channel)`  
 Sluit een geopend bestandskanaal.
-**Side Effects:**
 - Schrijft alle in-memory wijzigingen aan het bestand (JSON) weg naar schijf.
 - Maakt het kanaalnummer vrij voor hergebruik.
+- `CLOSE (1)`
 
 ### COS
 **Syntax:** `COS(num)`  
 Geeft de cosinus van een hoek (in radialen).
+- `COS(3.14159)` -> `-1.0`
 
 ### CVS
 **Syntax:** `CVS(string, mode)`  
 Converteert of manipuleert een string op basis van de modus:
-- `1`: Strip leading spaces
-- `2`: Strip trailing spaces
-- `16`: Naar hoofdletters (UpperCase)
 - `32`: Naar kleine letters (LowerCase)
 Modi kunnen opgeteld worden (bijv. `3` = strip leading & trailing).
+- `CVS("  Test  ", 3)` -> `"Test"`
 
 ---
 
@@ -117,6 +117,7 @@ Modi kunnen opgeteld worden (bijv. `3` = strip leading & trailing).
 Definieert arrays of reserveert geheugen voor string-arrays.
 **Effect:**
 - Initialiseert arrays met 0 of lege strings.
+- `DIM A(10), B$[20](30)`
 
 ### DIRECT
 **Syntax:** `DIRECT "filename", key_len, rec_len, disk_num, sector_num`  
@@ -126,8 +127,8 @@ Maakt een nieuw DIRECT bestand aan.
 - `rec_len`: Lengte van het record.
 - `disk_num`: Integer (bijv. `0` voor `D0`, `1` voor `D1`).
 - `sector_num`: Integer (gereserveerd, bijv. `0` of `10`).
-**Effect:**
 - Creëert een nieuw JSON bestand op de opgegeven disk.
+- `DIRECT "klanten", 10, 64, 0, 0`
 
 ---
 
@@ -138,16 +139,19 @@ Maakt een nieuw DIRECT bestand aan.
 Beëindigt de uitvoering van het programma en sluit alle open bestanden.
 **Side Effects:**
 - Forceert `CLOSE` op alle open kanalen.
+- `END`
 
 ### ENTER
 **Syntax:** `ENTER var1, var2...`  
 Gebruikt in een aangeroepen sub-programma (`CALL`) om argumenten te ontvangen variabele namen te binden.
+- `ENTER Namen$, Leeftijd`
 
 ### ERASE
 **Syntax:** `ERASE "filename"`  
 Verwijdert een bestand van de schijf.
 **Side Effects:**
 - Het bestand is permanent verwijderd.
+- `ERASE "oude_data"`
 
 ### EXECUTE
 **Syntax:** `EXECUTE string_expr [, OPT="LOCAL"]`  
@@ -157,20 +161,22 @@ Voert dynamisch Basic-code uit.
 - Zonder regelnummer: Directe uitvoering (console mode).
 - Met regelnummer: Voegt regel toe of wijzigt regel in het huidige programma.
 - `OPT="LOCAL"`: Voert uit in de lokale context (standaard is globaal/main programma).
-**Side Effects:**
 - Wijzigt de programmacode in het geheugen tijdens runtime (self-modifying code).
 - Kan variabelen wijzigen.
+- `EXECUTE "PRINT 'Hello'"`
+- `EXECUTE "Let A = 10", OPT="LOCAL"`
 
 ### EXIT
 **Syntax:** `EXIT`  
 Verlaat een sub-programma en keert terug naar de `CALL`.
-**Effect:**
 - Schrijft gewijzigde variabelen terug naar de aanroeper indien van toepassing.
 - Pop de context van de stack.
+- `EXIT`
 
 ### EXP
 **Syntax:** `EXP(num)`  
 Geeft `e` tot de macht `num`.
+- `EXP(1)` -> `2.718...`
 
 ### EXTRACT / EXTRACTRECORD
 **Syntax:** `EXTRACT (chn, KEY=k, IND=i) ...`  
@@ -180,6 +186,7 @@ Leest een record en lockt deze voor updates.
 **Verschil met READ:** `EXTRACT` verzet de file pointer **niet**, terwijl `READ` dit wel doet. Dit is cruciaal voor update-operaties op hetzelfde record.
 **Side Effects:**
 - Zet `last_key` op dit record (voor eventuele `REMOVE` zonder key).
+- `EXTRACT (1, KEY="Klant1") A$, B$`
 
 ---
 
@@ -202,10 +209,12 @@ Geeft het fractionele deel van een getal (achter de komma).
 ### GOSUB
 **Syntax:** `GOSUB line`  
 Springt naar een subroutine op het opgegeven regelnummer. Keer terug met `RETURN`.
+- `GOSUB 1000`
 
 ### GOTO
 **Syntax:** `GOTO line`  
 Springt onvoorwaardelijk naar het opgegeven regelnummer.
+- `GOTO 10`
 
 ---
 
@@ -220,10 +229,12 @@ Voert conditionele logica uit.
 ### INDEXED
 **Syntax:** `INDEXED "filename", num_recs, rec_len, disk_num, sector_num`  
 Maakt een INDEXED bestand aan.
+- `INDEXED "voorraad", 100, 128, 0, 0`
 
 ### INPUT
 **Syntax:** `INPUT "Prompt: ", var`  
 Vraagt invoer van de gebruiker.
+- `INPUT "Naam: ", N$`
 
 ### INT
 **Syntax:** `INT(num)`  
@@ -243,10 +254,12 @@ Geeft het gehele deel van een getal (truncation).
 ### LCS
 **Syntax:** `LCS(string)`  
 Converteert een string naar kleine letters (LowerCase).
+- `LCS("ABC")` -> `"abc"`
 
 ### LEN
 **Syntax:** `LEN(string)`  
 Geeft de lengte van een string.
+- `LEN("Test")` -> `4`
 
 ### LET
 **Syntax:** `LET var = expr`  
@@ -256,6 +269,7 @@ Wijst een waarde toe aan een variabele. Het woord `LET` is optioneel (impliciete
 ### LOG
 **Syntax:** `LOG(num)`  
 Geeft de natuurlijke logaritme van een getal.
+- `LOG(2.718)` -> `~1`
 
 ---
 
@@ -264,6 +278,7 @@ Geeft de natuurlijke logaritme van een getal.
 ### MOD
 **Syntax:** `MOD(num, div)`  
 Geeft de restwaarde van een deling (modulo).
+- `MOD(10, 3)` -> `1`
 
 ---
 
@@ -289,6 +304,7 @@ Opent een bestand op een specifiek kanaalnummer. Zoekt in `IPLINPUT` disks indie
 ### OR
 **Syntax:** `OR(str1, str2)`  
 Voert een bitwise OR uit op de ASCII-waarden.
+- `OR(CHR$(1), CHR$(2))` -> `CHR$(3)`
 
 ---
 
@@ -297,6 +313,7 @@ Voert een bitwise OR uit op de ASCII-waarden.
 ### POS
 **Syntax:** `POS(heystack, needle, start)`  
 (Let op syntax kan variëren per Basic, hier geïmplementeerd als functie). Zoekt de positie van een substring.
+- `POS("HELLO", "L", 1)` -> `3`
 
 ### PRINT
 **Syntax:** `PRINT expr, ...`  
@@ -317,12 +334,16 @@ Leest data uit een geopend bestand.
 **Side Effects:**
 - **File Pointer Update:** Verhoogt de interne file pointer na het lezen (in tegenstelling tot `EXTRACT`).
 - Bij `SERIAL` files: wijst naar het volgende record.
+- `READ (1, KEY="Klant1") Naam$, Adres$`
+- `READ (1) VolgendeRegel$`
 
 ### REM / REMARK
 **Syntax:** `REM comment`  
 Regel met commentaar, wordt genegeerd door de interpreter.
 **Effect:** Geen.  
 **Side Effects:** Geen.
+- `REM Dit is commentaar`
+- `! Dit is ook commentaar`
 
 ### REMOVE
 **Syntax:** `REMOVE (chn [, KEY=string])`  
@@ -334,6 +355,8 @@ Verwijdert een record uit een bestand.
 **Side Effects:**
 - De `last_key` referentie kan na uitvoering ongeldig zijn voor verdere operaties op diezelfde sleutel.
 - Ondersteunt `DOM` handling als de sleutel niet bestaat.
+- `REMOVE (1, KEY="1001")`
+- `REMOVE (1)` (verwijdert laatst gelezen record)
 
 ### RETURN
 **Syntax:** `RETURN`  
@@ -347,10 +370,12 @@ Keert terug van een subroutine aangeroepen met `GOSUB`.
 **Syntax:** `RND([seed])`  
 Geeft een willekeurig getal tussen 0 en 1.
 **Effect:** Retourneert een float.
+- `RND(1)` -> `0.123...`
 
 ### ROUND
 **Syntax:** `ROUND(num, decimals)`  
 Rondt een getal af op het opgegeven aantal decimalen.
+- `ROUND(3.14159, 2)` -> `3.14`
 
 ---
 
@@ -359,32 +384,39 @@ Rondt een getal af op het opgegeven aantal decimalen.
 ### SELECT
 **Syntax:** `SELECT (chn) ...`  
 (Gedeeltelijke implementatie) Selecteert records uit een bestand.
+- `SELECT (1) WHERE Naam$ > "M"` (hypothetisch voorbeeld)
 
 ### SERIAL
 **Syntax:** `SERIAL "filename", rec_len, disk_num, sector_num`  
 Maakt een SERIAL bestand aan (oplopend, geen sleutel).
 **Effect:** Creëert een nieuw JSON bestand met metadata `type="SERIAL"` op de opgegeven disk.
+- `SERIAL "log", 80`
 
 ### SGN
 **Syntax:** `SGN(num)`  
 Geeft het teken van een getal: 1 (positief), -1 (negatief), 0 (nul).
+- `SGN(-10)` -> `-1`
 
 ### SIN
 **Syntax:** `SIN(num)`  
 Geeft de sinus van een hoek (in radialen).
+- `SIN(1.57)` -> `~1`
 
 ### SORT
 **Syntax:** `SORT "filename", key_len, rec_len, disk_num, sector_num`  
 Maakt een SORT bestand aan.
 **Effect:** Creëert een nieuw JSON bestand met metadata `type="SORT"` op de opgegeven disk.
+- `SORT "klant_index", 10, 128`
 
 ### SQR
 **Syntax:** `SQR(num)`  
 Geeft de vierkantswortel van een getal.
+- `SQR(16)` -> `4`
 
 ### STR$
 **Syntax:** `STR$(num)`  
 Converteert een getal naar een string.
+- `STR$(123)` -> `"123"`
 
 ---
 
@@ -393,6 +425,7 @@ Converteert een getal naar een string.
 ### TAN
 **Syntax:** `TAN(num)`  
 Geeft de tangens van een hoek (in radialen).
+- `TAN(0.785)` -> `~1`
 
 ---
 
@@ -401,6 +434,7 @@ Geeft de tangens van een hoek (in radialen).
 ### UCS
 **Syntax:** `UCS(string)`  
 Converteert een string naar hoofdletters (UpperCase).
+- `UCS("abc")` -> `"ABC"`
 
 ---
 
@@ -412,6 +446,7 @@ Converteert een string naar een getal.
 **Effect:**
 - "123" -> 123.0
 - Probeert intelligente parsing; negeert niet-numerieke suffixen indien mogelijk.
+- `VAL("100")` -> `100.0`
 
 ---
 
@@ -420,6 +455,7 @@ Converteert een string naar een getal.
 ### XOR
 **Syntax:** `XOR(str1, str2)`  
 Voert een bitwise XOR (Exclusive OR) uit op de ASCII-waarden.
+- `XOR("A", "C")` -> resultaat met bitwise XOR
 
 ---
 
@@ -433,6 +469,7 @@ Schrijft data naar een geopend bestand.
 - Overschrijft bestaande data als de sleutel al bestaat.
 **Side Effects:**
 - Update `last_key` van het kanaal.
+- `WRITE (1, KEY="100") "Jan", "Amsterdam"`
 
 ---
 
