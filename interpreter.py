@@ -336,6 +336,8 @@ class ThoroughbredBasicInterpreter:
                 return val
             elif token.type in ('ID_NUM', 'ID_STR'):
                 return self.variables.get(token.value, 0 if token.type == 'ID_NUM' else "")
+            elif token.type == 'MNEMONIC':
+                return token.value[1:-1]
             return 0
 
         # 2. Handle indexing/substrings: ID(idx) or ID[idx] or ID(start, len)

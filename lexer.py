@@ -49,16 +49,34 @@ class Lexer:
 
     def tokenize(self, text):
         tok_regex = '|'.join('(?P<%s>%s)' % pair for pair in self.token_specification)
-        for mo in re.finditer(tok_regex, text.upper()):
+        # Use re.IGNORECASE to handle case insensitivity without upper()ing the whole text
+        for mo in re.finditer(tok_regex, text, re.IGNORECASE):
             kind = mo.lastgroup
             value = mo.group()
             if kind == 'NUMBER':
                 value = float(value) if '.' in value else int(value)
             elif kind == 'ID_NUM' or kind == 'ID_STR':
-                if value in self.keywords:
-                    kind = value
+                # Check keywords case-insensitively
+                upper_val = value.upper()
+                if upper_val in self.keywords:
+                    kind = upper_val
+                else:
+                    # Normalize variable names to upper case (BASIC standard)
+                    if kind == 'ID_NUM': value = upper_val
+                    # Keep ID_STR value as is? No, S$ and s$ are same var.
+                    # Normalized variable name:
+                    if kind == 'ID_STR': value = upper_val
+            elif kind == 'MNEMONIC':
+                # Normalize mnemonics to upper
+                value = value.upper()
+            elif kind == 'STRING':
+                # Keep string literals raw
+                pass
             elif kind == 'SKIP':
                 continue
             elif kind == 'MISMATCH':
-                raise RuntimeError(f'{value!r} unexpected on line')
+                # raise RuntimeError(f'{value!r} unexpected on line')
+                # Be more tolerant? No, Syntax Error.
+                yield Token('ERR', value)
+                continue
             yield Token(kind, value)

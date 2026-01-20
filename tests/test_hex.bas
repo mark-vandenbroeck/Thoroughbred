@@ -5,5 +5,8 @@
 50 PRINT "S$ = ", S$
 60 PRINT "HTA(S$) = ", HTA(S$)
 70 PRINT "HTA('A') = ", HTA("A")
-80 PRINT "ATH('1') -> '01' ->", ATH("1")
-90 END
+80 PRINT "ATH('1') -> '01' -> >"; ATH("1"); "<"
+90 PRINT "HTA('1') = ", HTA("1")
+100 REM Test Mnemonic arg
+110 PRINT "ATH('1' mnemonic) -> >"; ATH('1'); "<"
+120 END
