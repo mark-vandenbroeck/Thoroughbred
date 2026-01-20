@@ -55,7 +55,9 @@ class FileManager:
             'filename': filename,
             'data': records,
             'metadata': metadata,
-            'pos': 0
+            'metadata': metadata,
+            'pos': 0,
+            'last_key': None # Track last accessed key for REMOVE without KEY
         }
 
     def close(self, channel):
@@ -76,13 +78,18 @@ class FileManager:
         
         chan = self.channels[channel]
         data = chan['data']
+        print(f"DEBUG: WRITE ch={channel} key={key} ind={ind}")
         
         if chan['type'] == 'INDEXED' and ind is not None:
             data[str(ind)] = values
+            chan['last_key'] = str(ind)
         elif chan['type'] in ('DIRECT', 'SORT') and key is not None:
             data[str(key)] = values
+            chan['last_key'] = str(key)
         elif chan['type'] == 'SERIAL':
-            data[str(len(data))] = values
+            idx = str(len(data))
+            data[idx] = values
+            chan['last_key'] = idx
         else:
             raise RuntimeError(f"Invalid write operation on {chan['type']} file")
 
@@ -94,11 +101,14 @@ class FileManager:
         data = chan['data']
         
         if chan['type'] == 'INDEXED' and ind is not None:
+            chan['last_key'] = str(ind)
             return data.get(str(ind))
         elif chan['type'] in ('DIRECT', 'SORT') and key is not None:
+            chan['last_key'] = str(key)
             return data.get(str(key))
         elif chan['type'] == 'SERIAL':
             val = data.get(str(chan['pos']))
+            chan['last_key'] = str(chan['pos'])
             if val is not None and advance_pointer:
                 chan['pos'] += 1
             return val
@@ -106,8 +116,27 @@ class FileManager:
         return None
 
     def extract(self, channel, key=None, ind=None):
-        """Same as read, but usually locks record. In this interpreter, it ensures file pointer is NOT advanced for subsequent updates."""
         return self.read(channel, key=key, ind=ind, advance_pointer=False)
+
+    def remove(self, channel, key=None):
+        if channel not in self.channels:
+            raise RuntimeError(f"Channel {channel} not open")
+        
+        chan = self.channels[channel]
+        data = chan['data']
+        target_key = None
+
+        if key is not None:
+            target_key = str(key)
+        else:
+            if chan['last_key'] is None:
+                raise RuntimeError("No current record to remove")
+            target_key = chan['last_key']
+        
+        if target_key in data:
+            del data[target_key]
+        else:
+            raise FileNotFoundError(f"Key {target_key} not found")
 
     def erase(self, filename):
         path = self._get_path(filename)

@@ -846,7 +846,7 @@ class ThoroughbredBasicInterpreter:
                 del self.for_loops[var_name]
                 self.current_line_idx += 1
 
-        elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'SELECT'):
+        elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'SELECT', 'REMOVE'):
             # Shared parsing for file commands
             options = {}
             idx = 0
@@ -909,7 +909,7 @@ class ThoroughbredBasicInterpreter:
                 self.file_manager.close(tokens[2].value)
                 self.current_line_idx += 1
 
-            elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD'):
+            elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'REMOVE'):
                 chn = tokens[2].value
                 idx = 3
                 key, ind = None, None
@@ -948,6 +948,18 @@ class ThoroughbredBasicInterpreter:
                         if not jumped:
                             self.file_manager.write(chn, key=key, ind=ind, values=values)
 
+                    elif cmd == 'REMOVE':
+                        if not jumped:
+                            try:
+                                self.file_manager.remove(chn, key=key)
+                            except FileNotFoundError:
+                                if 'DOM' in options:
+                                    if self._handle_file_error('DOM', options): jumped = True
+                                elif not self._handle_file_error('ERR', options):
+                                    raise RuntimeError(f"Key not found on channel {chn} (ERR=11)")
+                            except Exception as e:
+                                if not self._handle_file_error('ERR', options): raise e
+
                     elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD'):
                         if not jumped:
                             # Use proper method based on command
@@ -958,20 +970,25 @@ class ThoroughbredBasicInterpreter:
                                 
                             if val is None:
                                 # EOF or not found logic (simplified)
-                                raise RuntimeError("End of file or record not found")
-                            if cmd == 'EXTRACTRECORD':
-                                var_tok = tokens[idx]
-                                self.variables[var_tok.value] = "|".join(map(str, val))
-                            else:
-                                var_idx = 0
-                                while idx < len(tokens):
-                                    t = tokens[idx]
-                                    if t.type in ('ID_NUM', 'ID_STR'):
-                                        # Assign from data
-                                        if var_idx < len(val):
-                                            self.variables[t.value] = val[var_idx]
-                                        var_idx += 1
-                                    idx += 1
+                                if 'DOM' in options:
+                                     if self._handle_file_error('DOM', options): jumped = True
+                                if not jumped:
+                                     raise RuntimeError("End of file or record not found")
+                            
+                            if not jumped and val is not None:
+                                if cmd == 'EXTRACTRECORD':
+                                    var_tok = tokens[idx]
+                                    self.variables[var_tok.value] = "|".join(map(str, val))
+                                else:
+                                    var_idx = 0
+                                    while idx < len(tokens):
+                                        t = tokens[idx]
+                                        if t.type in ('ID_NUM', 'ID_STR'):
+                                            # Assign from data
+                                            if var_idx < len(val):
+                                                self.variables[t.value] = val[var_idx]
+                                            var_idx += 1
+                                        idx += 1
 
                     if not jumped:
                         self.current_line_idx += 1
