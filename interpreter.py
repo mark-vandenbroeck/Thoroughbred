@@ -21,6 +21,13 @@ class ThoroughbredBasicInterpreter:
         # Initial context for the main program
         self._push_context({}, [])
 
+        # Trace State
+        self.trace_enabled = False
+        self.trace_channel = 0
+        self.trace_mode = "FULL"
+        self.trace_options = set()
+        self.trace_delay = 0
+
     def _push_context(self, program, line_numbers, variables=None, passed_args=None):
         self.context_stack.append({
             'program': program,
@@ -450,6 +457,26 @@ class ThoroughbredBasicInterpreter:
                         break # End of main program
 
                 current_line_num = ctx['line_numbers'][ctx['current_line_idx']]
+                
+                # Trace Logic
+                if self.trace_enabled and self.trace_mode == "FULL":
+                    is_in_call = len(self.context_stack) > 1
+                    is_in_gosub = len(self.stack) > 0
+                    
+                    should_trace = True
+                    if 'SKIPCALLS' in self.trace_options and is_in_call: should_trace = False
+                    if 'SKIPGOSUBS' in self.trace_options and is_in_gosub: should_trace = False
+                    
+                    if should_trace:
+                        # Reconstruct basic output
+                        src = ctx.get('program_source', {}).get(current_line_num, "")
+                        msg = f"-->{current_line_num:05d} {src}"
+                        if self.trace_channel == 0:
+                            print(msg)
+                            if self.trace_delay > 0:
+                                import time; time.sleep(self.trace_delay)
+                        # TODO: Implement channel output if needed
+
                 tokens = ctx['program'][current_line_num]
                 
                 if not tokens:
@@ -548,6 +575,21 @@ class ThoroughbredBasicInterpreter:
         self.current_line_idx += 1
 
     def _dispatch_statement(self, tokens):
+        if self.trace_enabled and self.trace_mode == "PARTIAL":
+            is_in_call = len(self.context_stack) > 1
+            is_in_gosub = len(self.stack) > 0
+            should_trace = True
+            if 'SKIPCALLS' in self.trace_options and is_in_call: should_trace = False
+            if 'SKIPGOSUBS' in self.trace_options and is_in_gosub: should_trace = False
+            
+            if should_trace:
+                ln = self.line_numbers[self.current_line_idx]
+                raw = " ".join(str(t.value) for t in tokens)
+                msg = f"-->{ln:05d} {raw}"
+                if self.trace_channel == 0:
+                    print(msg)
+                    if self.trace_delay > 0: import time; time.sleep(self.trace_delay)
+
         cmd = tokens[0].type
         
         if cmd == 'PRINT':
@@ -1294,6 +1336,54 @@ class ThoroughbredBasicInterpreter:
 
             self.current_line_idx += 1
 
+
+        elif cmd == 'SETTRACE':
+            chn = 0
+            if len(tokens) > 2 and tokens[1].type == 'LPAREN':
+                chn = int(tokens[2].value)
+            self.trace_enabled = True
+            self.trace_channel = chn
+            self.current_line_idx += 1
+
+        elif cmd == 'ENDTRACE':
+            self.trace_enabled = False
+            self.current_line_idx += 1
+
+        elif cmd == 'SET' and len(tokens) > 1 and tokens[1].type == 'TRACEMODE':
+             idx = 2
+             arg_tokens = []
+             while idx < len(tokens):
+                 arg_tokens.append(tokens[idx])
+                 idx += 1
+             
+             mode_str = str(self.evaluate_expression(arg_tokens))
+             parts = mode_str.upper().split('|')
+             t_mode = "FULL"
+             t_opts = set()
+             t_delay = 0
+             
+             for p in parts:
+                 p = p.strip()
+                 if p in ('F', 'FULL'): t_mode = "FULL"
+                 elif p in ('P', 'PARTIAL'): t_mode = "PARTIAL"
+                 elif p in ('SC', 'SKIPCALLS'): t_opts.add('SKIPCALLS')
+                 elif p in ('SG', 'SKIPGOSUBS'): t_opts.add('SKIPGOSUBS')
+                 elif p.startswith('D=') or p.startswith('DELAY='):
+                     try: t_delay = float(p.split('=')[1])
+                     except: pass
+             
+             self.trace_mode = t_mode
+             self.trace_options = t_opts
+             self.trace_delay = t_delay
+             self.current_line_idx += 1
+
+        elif cmd == 'STOP':
+            self.trace_enabled = False
+            # print("STOP") # Optional
+            if len(self.context_stack) > 1: self.context_stack.pop(); self.current_line_idx += 1; return # STOP in sub? usually HALT.
+            # STOP forces end of execution usually.
+            raise ExecutionFinished()
+
         elif cmd == 'EXIT':
             if len(self.context_stack) <= 1:
                 raise ExecutionFinished() # Top-level EXIT acts like END
@@ -1312,6 +1402,7 @@ class ThoroughbredBasicInterpreter:
             return
 
         elif cmd == 'END':
+            self.trace_enabled = False
             if len(self.context_stack) > 1:
                 # END in sub-program acts like EXIT but maybe without write-back?
                 # Thoroughbred usually suggests EXIT for return. 

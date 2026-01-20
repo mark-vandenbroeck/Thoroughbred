@@ -42,7 +42,8 @@ class Lexer:
             'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
             'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
             'MOD', 'ROUND', 'FPT', 'IPT', 'EXECUTE', 'REMOVE',
-            'AND', 'OR', 'NOT', 'XOR'
+            'AND', 'OR', 'NOT', 'XOR',
+            'SETTRACE', 'ENDTRACE', 'SET', 'TRACEMODE', 'STOP'
         }
 
     def tokenize(self, text):

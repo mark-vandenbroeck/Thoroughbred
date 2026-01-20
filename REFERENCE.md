@@ -147,6 +147,13 @@ Beëindigt de uitvoering van het programma en sluit alle open bestanden.
 - Forceert `CLOSE` op alle open kanalen.
 - `END`
 
+### ENDTRACE
+**Syntax:** `ENDTRACE`  
+Beëindigt de trace modus gestart door `SETTRACE`.
+**Effect:**
+- Stopt het printen van trace regels.
+- `ENDTRACE`
+
 ### ENTER
 **Syntax:** `ENTER var1, var2...`  
 Gebruikt in een aangeroepen sub-programma (`CALL`) om argumenten te ontvangen variabele namen te binden.
@@ -417,6 +424,27 @@ Maakt een SERIAL bestand aan (oplopend, geen sleutel).
 **Effect:** Creëert een nieuw JSON bestand met metadata `type="SERIAL"` op de opgegeven disk.
 - `SERIAL "log", 80`
 
+### SETTRACE
+**Syntax:** `SETTRACE [(channel)]`  
+Start het tracen van programma-executie. Standaard op kanaal 0 (console).
+**Effect:**
+- Toont regelnummer en broncode voor elke regel die wordt uitgevoerd (in FULL mode).
+- `SETTRACE`
+- `SETTRACE (2)`
+
+### SET TRACEMODE
+**Syntax:** `SET TRACEMODE string`  
+Configureert de details van de trace output.
+**Opties (string):**
+- `"FULL"`: Volledige regel (default).
+- `"PARTIAL"`: Geparseerde tokens/directives.
+- `"SKIPCALLS"`: Trace niet in `CALL` sub-programma's.
+- `"SKIPGOSUBS"`: Trace niet in `GOSUB` routines.
+- `"DELAY=n"`: Pauzeer `n` seconden na elke regel.
+**Combinaties:** Gebruik `|` (pipe).
+- `SET TRACEMODE "PARTIAL|D=0.2"`
+- `SET TRACEMODE "SKIPCALLS|F"`
+
 ### SGN
 **Syntax:** `SGN(num)`  
 Geeft het teken van een getal: 1 (positief), -1 (negatief), 0 (nul).
@@ -437,6 +465,13 @@ Maakt een SORT bestand aan.
 **Syntax:** `SQR(num)`  
 Geeft de vierkantswortel van een getal.
 - `SQR(16)` -> `4`
+
+### STOP
+**Syntax:** `STOP`  
+Stopt de uitvoering van het programma onmiddellijk.
+**Effect:**
+- Beëindigt programma/trace.
+- `STOP`
 
 ### STR$
 **Syntax:** `STR$(num)`  
