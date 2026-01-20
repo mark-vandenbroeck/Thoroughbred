@@ -28,6 +28,23 @@ Bij het openen van een bestand (`OPEN`), zoekt de interpreter het bestand in de 
 Bij commando's zoals `DIRECT`, `INDEXED`, `SERIAL` en `SORT` kan een disk-nummer worden opgegeven om te bepalen waar het bestand wordt aangemaakt.
 De syntax voor deze commando's is uitgebreid met `disk-num` en `sector-num` (waarbij sector-num momenteel gereserveerd is/optioneel, maar in de syntax vereist kan zijn voor compatibiliteit).
 
+### Voorbeelden
+**1. IPLINPUT Configuratie:**
+```text
+D0 = basic_storage/d0
+D1 = basic_storage/d1
+```
+
+**2. Bestand Aanmaken op D1:**
+```basic
+10 DIRECT "klanten", 10, 64, 1, 0  : REM Maak aan op D1 (disk_num=1)
+```
+
+**3. Bestand Openen (Zoekvolgorde):**
+```basic
+20 OPEN (1) "klanten"  : REM Zoekt in D0, dan D1... vindt 'klanten' op D1
+```
+
 ---
 
 ## A
