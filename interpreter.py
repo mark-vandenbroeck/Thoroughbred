@@ -27,6 +27,7 @@ class ThoroughbredBasicInterpreter:
             'line_numbers': line_numbers,
             'current_line_idx': 0,
             'variables': variables if variables is not None else {},
+            'program_source': {}, # Map line_number -> raw text for LIST
             'gosub_stack': [],
             'for_loops': {},
             'passed_args': passed_args or [],
@@ -55,8 +56,15 @@ class ThoroughbredBasicInterpreter:
     @property
     def for_loops(self): return self._curr()['for_loops']
 
+    @property
+    def program_source(self): return self._curr().get('program_source', {})
+    @program_source.setter
+    def program_source(self, value): self._curr()['program_source'] = value
+
     def load_program(self, source_code):
         self.program = {}
+        self.program_source = {} # line_number -> raw source string
+        
         for line in source_code.splitlines():
             if not line.strip():
                 continue
@@ -68,6 +76,16 @@ class ThoroughbredBasicInterpreter:
             if tokens[0].type == 'NUMBER':
                 line_number = tokens[0].value
                 self.program[line_number] = tokens[1:]
+                
+                # Store cleaned source line (without line number for easier re-assembly?)
+                # Or store everything after the number.
+                # Let's verify if original line had the number.
+                # Simple extraction:
+                match = re.match(r'^\s*\d+\s+(.*)', line)
+                if match:
+                    self.program_source[line_number] = match.group(1)
+                else:
+                    self.program_source[line_number] = ""
             else:
                 # Direct mode not supported in this simple version
                 print(f"Skipping line without line number: {line}")
@@ -1144,8 +1162,12 @@ class ThoroughbredBasicInterpreter:
                     # But here we just set it.
                     if line_num in target_prog:
                         del target_prog[line_num]
+                        if 'program_source' in target_ctx and line_num in target_ctx['program_source']:
+                             del target_ctx['program_source'][line_num]
                 else:
                     target_prog[line_num] = new_tokens
+                    if 'program_source' in target_ctx:
+                         target_ctx['program_source'][line_num] = line_content
 
                 # IMPORTANT: We must update line_numbers list for that context
                 target_ctx['line_numbers'] = sorted(target_prog.keys())

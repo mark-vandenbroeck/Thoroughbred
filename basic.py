@@ -340,6 +340,13 @@ class BasicCLI:
         try:
             self.interpreter.load_program(full_code)
             self.interpreter.execute()
+            
+            # Sync back source lines if changed (by EXECUTE)
+            if hasattr(self.interpreter, 'program_source'):
+                self.source_lines = {}
+                for ln, txt in self.interpreter.program_source.items():
+                    self.source_lines[ln] = txt
+
         except Exception as e:
             self.print(f"Execution Error: {e}")
 
