@@ -899,9 +899,22 @@ class ThoroughbredBasicInterpreter:
                     idx += 1
 
                 try:
-                    rec_len = args[1] if len(args) > 1 and cmd != 'SERIAL' else (args[0] if args else None)
-                    key_len = args[0] if len(args) > 0 and cmd != 'SERIAL' else None
-                    self.file_manager.create(filename, cmd, rec_len=rec_len, key_len=key_len)
+                    # Determine args based on command type
+                    key_len = None
+                    rec_len = None
+                    disk_num = None
+                    
+                    if cmd == 'SERIAL':
+                        if len(args) > 0: rec_len = args[0]
+                        if len(args) > 1: disk_num = args[1]
+                        # args[2] sector ignored
+                    else:
+                        if len(args) > 0: key_len = args[0]
+                        if len(args) > 1: rec_len = args[1]
+                        if len(args) > 2: disk_num = args[2]
+                        # args[3] sector ignored
+
+                    self.file_manager.create(filename, cmd, rec_len=rec_len, key_len=key_len, disk_num=disk_num)
                     self.current_line_idx += 1
                 except Exception as e:
                     if not self._handle_file_error('ERR', options): raise e

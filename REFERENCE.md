@@ -2,6 +2,32 @@
 
 Deze handleiding bevat een alfabetisch overzicht van alle geïmplementeerde commando's (directives) en functies in deze interpreter.
 
+Deze handleiding bevat een alfabetisch overzicht van alle geïmplementeerde commando's (directives) en functies in deze interpreter.
+
+---
+
+## Configuratie en Disks
+
+De interpreter ondersteunt het **Thoroughbred Basic 'Disk' concept**. Dit is een mapping van logische schijfnummers naar fysieke directories.
+
+### IPLINPUT
+Bij het opstarten leest de interpreter het configuratiebestand `IPLINPUT` in de huidige werkmap.
+**Formaat:**
+```text
+D0 = ./data/d0
+D1 = ./data/backup
+DA = /var/thoroughbred/data
+```
+- Elke disk naam begint met `D`, gevolgd door 1 karakter (cijfer of letter).
+- Paden kunnen relatief of absoluut zijn.
+
+### Bestanden Zoeken
+Bij het openen van een bestand (`OPEN`), zoekt de interpreter het bestand in de gedefinieerde disks in **alfabetische volgorde** van de disk-naam (bijv. eerst `D0`, dan `D1`, dan `DA`...), tenzij een specifiek pad is opgegeven.
+
+### Bestanden Aanmaken
+Bij commando's zoals `DIRECT`, `INDEXED`, `SERIAL` en `SORT` kan een disk-nummer worden opgegeven om te bepalen waar het bestand wordt aangemaakt.
+De syntax voor deze commando's is uitgebreid met `disk-num` en `sector-num` (waarbij sector-num momenteel gereserveerd is/optioneel, maar in de syntax vereist kan zijn voor compatibiliteit).
+
 ---
 
 ## A
@@ -76,11 +102,15 @@ Definieert arrays of reserveert geheugen voor string-arrays.
 - Initialiseert arrays met 0 of lege strings.
 
 ### DIRECT
-**Syntax:** `DIRECT "filename", key_len, rec_len`  
-Maakt een nieuw DIRECT bestand aan met vaste record- en sleutellengte.
+**Syntax:** `DIRECT "filename", key_len, rec_len, disk_num, sector_num`  
+Maakt een nieuw DIRECT bestand aan.
+**Params:**
+- `key_len`: Lengte van de sleutel.
+- `rec_len`: Lengte van het record.
+- `disk_num`: Integer (bijv. `0` voor `D0`, `1` voor `D1`).
+- `sector_num`: Integer (gereserveerd, bijv. `0` of `10`).
 **Effect:**
-- Creëert een nieuw JSON bestand op schijf met metadata `type="DIRECT"`.
-- Overschrijft bestaand bestand indien aanwezig.
+- Creëert een nieuw JSON bestand op de opgegeven disk.
 
 ---
 
@@ -171,7 +201,7 @@ Voert conditionele logica uit.
 - `IF A = B THEN PRINT "GELIJK"`
 
 ### INDEXED
-**Syntax:** `INDEXED "filename", key_len, rec_len`  
+**Syntax:** `INDEXED "filename", num_recs, rec_len, disk_num, sector_num`  
 Maakt een INDEXED bestand aan.
 
 ### INPUT
@@ -203,7 +233,8 @@ Geeft de lengte van een string.
 
 ### LET
 **Syntax:** `LET var = expr`  
-Wijst een waarde toe aan een variabele. Het woord `LET` is optioneel in veel basics, maar hier expliciet. Ondersteunt substrings: `LET A$(1,3) = "ABC"`.
+Wijst een waarde toe aan een variabele. Het woord `LET` is optioneel (impliciete assignment supported).
+- `A$ = "Hello"`
 
 ### LOG
 **Syntax:** `LOG(num)`  
@@ -236,7 +267,7 @@ Voert een bitwise NOT (inversie) uit op de karakters (0-255).
 
 ### OPEN
 **Syntax:** `OPEN (chn) "filename" [, DIRECT|INDEXED|SERIAL]`  
-Opent een bestand op een specifiek kanaalnummer.
+Opent een bestand op een specifiek kanaalnummer. Zoekt in `IPLINPUT` disks indien geen pad is opgegeven.
 
 ### OR
 **Syntax:** `OR(str1, str2)`  
@@ -313,9 +344,9 @@ Rondt een getal af op het opgegeven aantal decimalen.
 (Gedeeltelijke implementatie) Selecteert records uit een bestand.
 
 ### SERIAL
-**Syntax:** `SERIAL "filename", rec_len`  
+**Syntax:** `SERIAL "filename", rec_len, disk_num, sector_num`  
 Maakt een SERIAL bestand aan (oplopend, geen sleutel).
-**Effect:** Creëert een nieuw JSON bestand met metadata `type="SERIAL"`.
+**Effect:** Creëert een nieuw JSON bestand met metadata `type="SERIAL"` op de opgegeven disk.
 
 ### SGN
 **Syntax:** `SGN(num)`  
@@ -326,9 +357,9 @@ Geeft het teken van een getal: 1 (positief), -1 (negatief), 0 (nul).
 Geeft de sinus van een hoek (in radialen).
 
 ### SORT
-**Syntax:** `SORT "filename", key_len, rec_len`  
+**Syntax:** `SORT "filename", key_len, rec_len, disk_num, sector_num`  
 Maakt een SORT bestand aan.
-**Effect:** Creëert een nieuw JSON bestand met metadata `type="SORT"`.
+**Effect:** Creëert een nieuw JSON bestand met metadata `type="SORT"` op de opgegeven disk.
 
 ### SQR
 **Syntax:** `SQR(num)`  

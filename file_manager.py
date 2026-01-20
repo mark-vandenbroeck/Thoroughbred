@@ -5,14 +5,65 @@ class FileManager:
     def __init__(self):
         self.channels = {} # chan_num -> {type, filename, data, pos}
         self.storage_dir = "basic_storage"
-        if not os.path.exists(self.storage_dir):
+        self.disks = {} # D0 -> path, D1 -> path
+        self.load_iplinput()
+        
+        # Ensure default storage exists if no disks
+        if not self.disks and not os.path.exists(self.storage_dir):
             os.makedirs(self.storage_dir)
 
-    def _get_path(self, filename):
+    def load_iplinput(self):
+        try:
+            if os.path.exists('IPLINPUT'):
+                with open('IPLINPUT', 'r') as f:
+                    for line in f:
+                        line = line.strip()
+                        if not line or line.startswith('#'): continue
+                        if '=' in line:
+                            key, val = line.split('=', 1)
+                            key = key.strip().upper()
+                            val = val.strip()
+                            self.disks[key] = val
+                            if not os.path.exists(val):
+                                try:
+                                    os.makedirs(val)
+                                except: pass # Just warn?
+        except Exception as e:
+            print(f"Warning: Error loading IPLINPUT: {e}")
+
+    def _get_path(self, filename, disk_num=None, search=False):
+        # 1. If explicit disk provided (for CREATE)
+        if disk_num is not None:
+            # disk_num comes as int usually, e.g. 0 -> D0, 10 -> DA?
+            # User said: "bijv. 0 voor D0, 1 voor D1".
+            # Mapping heuristic: 0-9 -> D0-D9. >9?
+            # Or disk name passed directly? User said "disk-num" is integer.
+            # Let's assume D + str(disk_num) for now.
+            # What if disk_num is a string "A"? User said "disk is een integer waarde".
+            # But keys are D0, DA...
+            # Maybe 0->D0, 1->D1.
+            key = f"D{disk_num}"
+            if key in self.disks:
+                return os.path.join(self.disks[key], filename + ".json")
+            else:
+                 # Fallback to default or error?
+                 # If explicit disk request fails, maybe default dir?
+                 return os.path.join(self.storage_dir, filename + ".json")
+
+        # 2. Search existing (for OPEN)
+        if search:
+            # Sort disks alphabetically
+            sorted_disks = sorted(self.disks.keys())
+            for key in sorted_disks:
+                path = os.path.join(self.disks[key], filename + ".json")
+                if os.path.exists(path):
+                    return path
+        
+        # 3. Default (current dir or standard storage)
         return os.path.join(self.storage_dir, filename + ".json")
 
-    def create(self, filename, file_type, rec_len=None, key_len=None):
-        path = self._get_path(filename)
+    def create(self, filename, file_type, rec_len=None, key_len=None, disk_num=None):
+        path = self._get_path(filename, disk_num=disk_num, search=False)
         # Use a structure that includes metadata
         file_content = {
             "_metadata": {
@@ -26,7 +77,7 @@ class FileManager:
             json.dump(file_content, f, indent=2)
 
     def open(self, channel, filename, file_type=None, rec_len=None):
-        path = self._get_path(filename)
+        path = self._get_path(filename, search=True) # Search disks
         if not os.path.exists(path):
             raise FileNotFoundError(f"File not found: {filename}")
         
@@ -139,6 +190,6 @@ class FileManager:
             raise FileNotFoundError(f"Key {target_key} not found")
 
     def erase(self, filename):
-        path = self._get_path(filename)
+        path = self._get_path(filename, search=True)
         if os.path.exists(path):
             os.remove(path)
