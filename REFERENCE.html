@@ -520,6 +520,15 @@ D1 = ./data/backup</code></pre>
                 <div class="syntax">REMOVE (chn [, KEY=k])</div>
                 <p>Deletes a record. If no KEY, deletes last accessed record.</p>
 
+                <h3>RETRY</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">RETRY</div>
+                <p>Retries the statement that caused the last error.</p>
+                <ul>
+                    <li>Returns execution to the line where the error occurred.</li>
+                    <li>Restores the <code>SETERR</code> setting to its state before the error.</li>
+                </ul>
+
                 <h3>RETURN</h3>
                 <span class="cmd-type">Flow Control Directive</span>
                 <div class="syntax">RETURN</div>
@@ -553,7 +562,8 @@ D1 = ./data/backup</code></pre>
                 <p>Defines a global error-handler routine.</p>
                 <ul>
                     <li>Transfers control to <code>line</code> if a runtime error occurs (and is not handled locally by
-                        <code>ERR=</code>).</li>
+                        <code>ERR=</code>).
+                    </li>
                     <li><code>SETERR OFF</code> disables the handler.</li>
                     <li>Error handler is automatically disabled upon entry.</li>
                 </ul>

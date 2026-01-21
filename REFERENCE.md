@@ -420,6 +420,13 @@ Gerefereerd via `IOL=line` optie in I/O statement.
 **Beschrijving:** Verwijdert een record.
 - Zonder `KEY`: Verwijdert het laatst benaderde record.
 
+### RETRY
+**Type:** Flow Control Directive  
+**Syntax:** `RETRY`  
+**Beschrijving:** Keert terug naar de regel die de laatste fout veroorzaakte en voert deze opnieuw uit.
+- Werkt in combinatie met `SETERR`, `ERR=`, `DOM=`, `END=`.
+- Herstelt automatisch de waarde van `SETERR` naar de status vóór de fout.
+
 ### RETURN
 **Type:** Flow Control Directive  
 **Syntax:** `RETURN`  

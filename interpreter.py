@@ -35,7 +35,8 @@ class ThoroughbredBasicInterpreter:
         self.seterr_line = 0
         self.seterr_active = False
         self.seterr_saved = 0
-        self.last_error_line = None # For RETRY (not fully implemented yet but needed for SETERR state)
+        self.retry_index = 0 # Index of the line to retry
+        self.last_error_line = None 
 
 
     def _push_context(self, program, line_numbers, variables=None, passed_args=None):
@@ -701,6 +702,8 @@ class ThoroughbredBasicInterpreter:
             try:
                 target = int(float(options['DOM']))
                 if target in self.line_numbers:
+                    self.retry_index = self.current_line_idx
+                    self.seterr_saved = self.seterr_line
                     self.current_line_idx = self.line_numbers.index(target)
                     return True
             except: pass
@@ -708,6 +711,8 @@ class ThoroughbredBasicInterpreter:
             try:
                 target = int(float(options['ERR']))
                 if target in self.line_numbers:
+                    self.retry_index = self.current_line_idx
+                    self.seterr_saved = self.seterr_line
                     self.current_line_idx = self.line_numbers.index(target)
                     return True
             except: pass
@@ -721,10 +726,9 @@ class ThoroughbredBasicInterpreter:
         if self.seterr_active and self.seterr_line > 0:
             target = self.seterr_line
             
-            # Save state (RETRY mechanism would use this)
+            # Save state for RETRY
             self.seterr_saved = self.seterr_line
-            
-            # TODO: Save current line number/index for RETRY
+            self.retry_index = self.current_line_idx
             
             # Disable SETERR (SETERR 0)
             self.seterr_line = 0
@@ -1193,6 +1197,20 @@ class ThoroughbredBasicInterpreter:
             if not self.stack:
                 raise RuntimeError("RETURN without GOSUB")
             self.current_line_idx = self.stack.pop()
+            
+        elif cmd == 'RETRY':
+            # Restore SETERR state
+            if self.seterr_saved > 0:
+                self.seterr_line = self.seterr_saved
+                self.seterr_active = True
+                self.seterr_saved = 0
+            
+            # Jump to retry index
+            if 0 <= self.retry_index < len(self.line_numbers):
+                self.current_line_idx = self.retry_index
+                return # Skip += 1
+            
+            self.current_line_idx += 1
 
         elif cmd == 'IF':
             # IF [expr] THEN [target]
