@@ -1,626 +1,562 @@
 # Thoroughbred Basic Reference Manual
 
-Deze handleiding bevat een alfabetisch overzicht van alle geïmplementeerde commando's (directives) en functies in deze interpreter.
-
-Deze handleiding bevat een alfabetisch overzicht van alle geïmplementeerde commando's (directives) en functies in deze interpreter.
+Deze handleiding bevat een gedetailleerd alfabetisch overzicht van alle geïmplementeerde commando's (directives) en functies in deze interpreter.
 
 ---
 
 ## Configuratie en Disks
 
-De interpreter ondersteunt het **Thoroughbred Basic 'Disk' concept**. Dit is een mapping van logische schijfnummers naar fysieke directories.
+De interpreter maakt gebruik van een **'Disk' systeem** voor bestandsbeheer, waarbij logische disk-namen (zoals `D0`, `D1`) worden gekoppeld aan fysieke directories op het hostsysteem.
 
 ### IPLINPUT
-Bij het opstarten leest de interpreter het configuratiebestand `IPLINPUT` in de huidige werkmap.
-**Formaat:**
-```text
-D0 = ./data/d0
-D1 = ./data/backup
-DA = /var/thoroughbred/data
-```
-- Elke disk naam begint met `D`, gevolgd door 1 karakter (cijfer of letter).
-- Paden kunnen relatief of absoluut zijn.
+Bij het opstarten leest de interpreter configuratie uit `IPLINPUT` in de huidige werkmap.
+**Structuur:**
+`DISKNAAM = /pad/naar/directory`
 
-### Bestanden Zoeken
-Bij het openen van een bestand (`OPEN`), zoekt de interpreter het bestand in de gedefinieerde disks in **alfabetische volgorde** van de disk-naam (bijv. eerst `D0`, dan `D1`, dan `DA`...), tenzij een specifiek pad is opgegeven.
+**Voorbeeld:**
+```text
+D0 = ./data/primary
+D1 = ./data/backup
+```
+Bij bestandsoperaties (zoals `OPEN`) wordt standaard gezocht in de volgorde: `D0`, `D1`, enz., tenzij een specifiek pad of disknummer is opgegeven.
 
 ### Bestanden Aanmaken
 Bij commando's zoals `DIRECT`, `INDEXED`, `SERIAL` en `SORT` kan een disk-nummer worden opgegeven om te bepalen waar het bestand wordt aangemaakt.
-De syntax voor deze commando's is uitgebreid met `disk-num` en `sector-num` (waarbij sector-num momenteel gereserveerd is/optioneel, maar in de syntax vereist kan zijn voor compatibiliteit).
-
-### Voorbeelden
-**1. IPLINPUT Configuratie:**
-```text
-D0 = basic_storage/d0
-D1 = basic_storage/d1
-```
-
-**2. Bestand Aanmaken op D1:**
-```basic
-10 DIRECT "klanten", 10, 64, 1, 0  : REM Maak aan op D1 (disk_num=1)
-```
-
-**3. Bestand Openen (Zoekvolgorde):**
-```basic
-20 OPEN (1) "klanten"  : REM Zoekt in D0, dan D1... vindt 'klanten' op D1
-```
 
 ---
 
 ## A
 
+## A
+
 ### ABS
+**Type:** Numerieke Functie  
 **Syntax:** `ABS(num)`  
-Geeft de absolute waarde van een getal.
-- `ABS(-5)` -> `5`
+**Beschrijving:** Retourneert de absolute waarde van een getal `num`.  
+**Voorbeelden:**
+- `ABS(-5)` &rarr; `5`
 
 ### ASC
+**Type:** String Functie  
 **Syntax:** `ASC(string)`  
-Geeft de ASCII-waarde van het eerste karakter van de string.
-- `ASC("A")` -> `65`
+**Beschrijving:** Retourneert de decimale ASCII-waarde van het **eerste** karakter van `string`.  
+**Voorbeelden:**
+- `ASC("A")` &rarr; `65`
 
 ### ATH
-**Syntax:** `ATH(string)`  
-(ASCII to Hex) Converteert een hexadecimale string naar een binaire string (bytes).
-- Als de lengte oneven is, wordt een '0' voorgevoegd ("A" -> "0A").
-- `ATH("41")` -> `"A"`
-- `ATH("414243")` -> `"ABC"`
+**Type:** Conversie Functie  
+**Syntax:** `ATH(hex_string)`  
+**Beschrijving:** Converteert een hexadecimale string naar een binaire string (ASCII).  
+Als de input-string een oneven lengte heeft, wordt er automatisch een '0' aan de voorkant toegevoegd.  
+**Voorbeelden:**
+- `ATH("41")` &rarr; `"A"`
+- `ATH("414243")` &rarr; `"ABC"`
 
 ### ATN
+**Type:** Numerieke Functie  
 **Syntax:** `ATN(num)`  
-Geeft de arctangens van een getal (in radialen).
-- `ATN(1)` -> `0.785...` (pi/4)
+**Beschrijving:** Retourneert de arctangens van `num` in radialen.
 
 ---
 
 ## C
 
 ### CALL
-**Syntax:** `CALL "program", [ERR=line], [args...]`  
-Roept een extern sub-programma aan met optionele argumenten.
-**Effect:**
-- Start een nieuwe interpreter context, pusht variabelen en keert terug na `EXIT` of `END`.
-- Variabelen worden "by value" gekopieerd (tenzij `ENTER`/`EXIT` data terugschrijven).
-- `CALL "subprog", A, B`
+**Type:** Flow Control Directive  
+**Syntax:** `CALL "programma", [ERR=regelnr], [argumenten...]`  
+**Beschrijving:** Start de uitvoering van een extern Basic-programma als een subroutine.
+- Er wordt een **nieuwe context** gecreëerd. Variabelen uit het aanroepende programma zijn **niet** zichtbaar in het aangeroepen programma, tenzij ze expliciet worden doorgegeven.
+- Het aangeroepen programma gebruikt `ENTER` om argumenten te ontvangen.
+- Met `EXIT` keert de besturing terug naar het aanroepende programma (na de `CALL`).
+**Voorbeeld:**
+```basic
+10 CALL "SUB", A
+```
 
 ### CHR$
+**Type:** String Functie  
 **Syntax:** `CHR$(code)`  
-Geeft het karakter dat overeenkomt met de opgegeven ASCII-code.
-- `CHR$(65)` -> `"A"`
+**Beschrijving:** Converteert een ASCII-code (0-255) naar het bijbehorende karakter.
+**Voorbeelden:**
+- `CHR$(65)` &rarr; `"A"`
 
 ### CLOSE
+**Type:** I/O Directive  
 **Syntax:** `CLOSE (channel)`  
-Sluit een geopend bestandskanaal.
-- Schrijft alle in-memory wijzigingen aan het bestand (JSON) weg naar schijf.
-- Maakt het kanaalnummer vrij voor hergebruik.
-- `CLOSE (1)`
+**Beschrijving:** Sluit het bestand dat geopend is op kanaalnummer `channel`. Alle buffers worden weggeschreven naar disk.
 
 ### COS
+**Type:** Numerieke Functie  
 **Syntax:** `COS(num)`  
-Geeft de cosinus van een hoek (in radialen).
-- `COS(3.14159)` -> `-1.0`
+**Beschrijving:** Retourneert de cosinus van hoek `num` (in radialen).
 
 ### CVS
+**Type:** String Functie  
 **Syntax:** `CVS(string, mode)`  
-Converteert of manipuleert een string op basis van de modus:
-- `1`: Strip leading spaces (LTRIM)
-- `2`: Strip trailing spaces (RTRIM)
-- `16`: Naar hoofdletters (UpperCase)
-- `32`: Naar kleine letters (LowerCase)
-**Combinaties:**
-- `3` (1+2): Strip beide.
-- `19` (1+2+16): Strip beide en converteer naar hoofdletters.
-- `CVS("  Test  ", 3)` -> `"Test"`
-- `CVS("abc", 16)` -> `"ABC"`
+**Beschrijving:** Converteert `string` volgens de opgegeven bitwise `mode`.
+- **1:** Strip spaties links (LTRIM)
+- **2:** Strip spaties rechts (RTRIM)
+- **16:** Converteer naar Hoofdletters
+- **32:** Converteer naar Kleine letters
+**Voorbeelden:**
+- `CVS("   test   ", 3)` &rarr; `"test"` (1+2 = Strip beiden)
+- `CVS("a", 16)` &rarr; `"A"`
 
 ---
 
 ## D
 
 ### DIM
+**Type:** Declaratie Directive  
 **Syntax:** `DIM var[size](len), ...`  
-Definieert arrays of reserveert geheugen voor string-arrays.
-**Effect:**
-- Initialiseert arrays met 0 of lege strings.
-- `DIM A(10), B$[20](30)`
+**Beschrijving:** Reserveert geheugen voor arrays.
+**Voorbeelden:**
+- `DIM A(10)`: Numerieke array.
+- `DIM B$(5)`: String array.
 
 ### DIRECT
+**Type:** File Directive  
 **Syntax:** `DIRECT "filename", key_len, rec_len, disk_num, sector_num`  
-Maakt een nieuw DIRECT bestand aan.
-**Params:**
-- `key_len`: Lengte van de sleutel.
-- `rec_len`: Lengte van het record.
-- `disk_num`: Integer (bijv. `0` voor `D0`, `1` voor `D1`).
-- `sector_num`: Integer (gereserveerd, bijv. `0` of `10`).
-- Creëert een nieuw JSON bestand op de opgegeven disk.
-- `DIRECT "klanten", 10, 64, 0, 0`
-
----
-
-- `DIRECT "klanten", 10, 64, 0, 0`
+**Beschrijving:** Creëert een nieuw 'DIRECT' (Keyed) bestand.
+- `key_len`: Max lengte van de sleutel.
+- `rec_len`: Max lengte van een record.
+- `disk_num`: Doel disk (bijv. 0 voor D0).
 
 ### DTN
+**Type:** datum Functie  
 **Syntax:** `DTN(string [, mask])`  
-Converteert een datumstring volgens het masker naar een SQL numerieke datum (Julian Day Number).
-**Masker opties:**
-- `YYYY`, `YY`, `YYY`: Jaar.
-- `MM`, `MON`, `MONTH`: Maand.
-- `DD`, `DDD`: Dag.
-- `HH`, `MI`, `SS`: Tijd.
-**Default:** "DD-MON-YYYY HH:MI:SS"
-- `DTN("25-DEC-2023", "DD-MON-YYYY")` -> `2460306.0`
+**Beschrijving:** Converteert datumtekst naar een Julian Day Number. Standaardmasker: "DD-MON-YYYY HH:MI:SS".
+**Voorbeelden:**
+- `DTN("01-JAN-2023", "DD-MON-YYYY")`
 
 ---
 
+## E
+
 ### END
+**Type:** Flow Control Directive  
 **Syntax:** `END`  
-Beëindigt de uitvoering van het programma en sluit alle open bestanden.
-**Side Effects:**
-- Forceert `CLOSE` op alle open kanalen.
-- `END`
+**Beschrijving:** Stopt de uitvoering van het programma onmiddellijk en sluit alle bestanden.
 
 ### ENDTRACE
+**Type:** Debug Directive  
 **Syntax:** `ENDTRACE`  
-Beëindigt de trace modus gestart door `SETTRACE`.
-**Effect:**
-- Stopt het printen van trace regels.
-- `ENDTRACE`
+**Beschrijving:** Schakelt de trace-modus uit.
 
 ### ENTER
+**Type:** Flow Control Directive  
 **Syntax:** `ENTER var1, var2...`  
-Gebruikt in een aangeroepen sub-programma (`CALL`) om argumenten te ontvangen variabele namen te binden.
-- `ENTER Namen$, Leeftijd`
+**Beschrijving:** Ontvangt argumenten in een aangeroepen programma (`CALL`).
 
 ### ERASE
+**Type:** File Directive  
 **Syntax:** `ERASE "filename"`  
-Verwijdert een bestand van de schijf.
-**Side Effects:**
-- Het bestand is permanent verwijderd.
-- `ERASE "oude_data"`
+**Beschrijving:** Verwijdert een bestand fysiek van de disk.
 
 ### EXECUTE
+**Type:** Meta Directive  
 **Syntax:** `EXECUTE string_expr [, OPT="LOCAL"]`  
-Voert dynamisch Basic-code uit.
-**Effect:**
-- Parsed de string `string_expr` en voert deze uit.
-- Zonder regelnummer: Directe uitvoering (console mode equivalent).
-- Met regelnummer: Voegt regel toe of wijzigt regel in het huidige programma (**Self-Modifying Code**).
-- `OPT="LOCAL"`: Voert uit in een tijdelijke context. Variabelen worden niet permanent in het hoofdprogramma gewijzigd.
-**Side Effects:**
-- Wijzigt de programmacode in het geheugen tijdens runtime indien een regelnummer wordt gebruikt.
-- Kan variabelen wijzigen in de globale scope (zonder `OPT="LOCAL"`).
-**Voorbeelden:**
-- `EXECUTE "PRINT 'Hello'"` (Directe uitvoer)
-- `EXECUTE "100 PRINT 'New Line'"` (Wijzigt regel 100)
-- `EXECUTE "LET A=10"` (Zet A=10 in globale scope)
-- `EXECUTE "LET A=20", OPT="LOCAL"` (Zet A=20 lokaal)
+**Beschrijving:** Compileert en voert Basic-code uit die in `string_expr` staat tijdens runtime.
 
 ### EXIT
+**Type:** Flow Control Directive  
 **Syntax:** `EXIT`  
-Verlaat een sub-programma en keert terug naar de `CALL`.
-- Schrijft gewijzigde variabelen terug naar de aanroeper indien van toepassing.
-- Pop de context van de stack.
-- `EXIT`
+**Beschrijving:** Beëindigt een programma dat gestart is met `CALL`. Schrijft gewijzigde referentie-variabelen (via `ENTER`) terug naar de aanroeper.
 
 ### EXP
+**Type:** Numerieke Functie  
 **Syntax:** `EXP(num)`  
-Geeft `e` tot de macht `num`.
-- `EXP(1)` -> `2.718...`
+**Beschrijving:** Berekent *e* tot de macht `num`.
 
 ### EXTRACT / EXTRACTRECORD
-**Syntax:** `EXTRACT (chn, KEY=k, IND=i) ...`  
-Leest een record en lockt deze voor updates.
-**Effect:**
-- Leest waarden uit het bestand (analoog aan `READ`).
-**Verschil met READ:** `EXTRACT` verzet de file pointer **niet**, terwijl `READ` dit wel doet. Dit is cruciaal voor update-operaties op hetzelfde record.
-**Side Effects:**
-- Zet `last_key` op dit record (voor eventuele `REMOVE` zonder key).
-- `EXTRACT (1, KEY="Klant1") A$, B$`
+**Type:** I/O Directive  
+**Syntax:** `EXTRACT (chn, KEY=k, IND=i) vars...`  
+**Beschrijving:** Leest record data en plaatst een **lock** op het record.
+- **Belangrijk:** Verplaatst de file pointer **niet**.
+- Vergelijk met `READ`.
 
 ---
 
 ## F
 
 ### FOR
+**Type:** Flow Control Directive  
 **Syntax:** `FOR var = start TO end [STEP step]`  
-Start een lus.
-- `FOR I = 1 TO 10 STEP 2`
+**Beschrijving:** Start een lusteller. De lus wordt afgesloten met `NEXT var`.
+- `start`, `end`, `step` kunnen expressies zijn.
+- Als `step` ontbreekt, is de stapgrootte 1.
+- De lus voert minimaal 0 keer uit (als start > end en step > 0).
 
 ### FPT
+**Type:** Numerieke Functie  
 **Syntax:** `FPT(num)`  
-Geeft het fractionele deel van een getal (achter de komma).
-- `FPT(3.14)` -> `0.14`
+**Beschrijving:** Retourneert het fractionele deel (achter de komma) van `num`.
+- `FPT(3.14)` &rarr; `0.14`
 
 ---
 
 ## G
 
 ### GOSUB
+**Type:** Flow Control Directive  
 **Syntax:** `GOSUB line`  
-Springt naar een subroutine op het opgegeven regelnummer. Keer terug met `RETURN`.
-- `GOSUB 1000`
+**Beschrijving:** Springt naar een subroutine op `line`. Het programma keert terug naar de regel na `GOSUB` zodra een `RETURN` wordt bereikt.
+- Nesting is toegestaan.
 
 ### GOTO
+**Type:** Flow Control Directive  
 **Syntax:** `GOTO line`  
-Springt onvoorwaardelijk naar het opgegeven regelnummer.
-- `GOTO 10`
-
----
+**Beschrijving:** Springt onvoorwaardelijk naar `line`.
 
 ---
 
 ## H
 
 ### HTA
+**Type:** Conversie Functie  
 **Syntax:** `HTA(string)`  
-(Hex to ASCII) Converteert een string naar zijn hexadecimale representatie.
-- `HTA("A")` -> `"41"`
-- `HTA("ABC")` -> `"414243"`
+**Beschrijving:** (Hex to ASCII) Converteert de bytes in `string` naar hun hexadecimale representatie.
+**Voorbeelden:**
+- `HTA("A")` &rarr; `"41"`
 
 ---
 
 ## I
 
 ### IF
+**Type:** Flow Control Directive  
 **Syntax:** `IF condition THEN line` / `IF condition THEN statement`  
-Voert conditionele logica uit.
-- `IF A < 10 THEN 100`
-- `IF A = B THEN PRINT "GELIJK"`
+**Beschrijving:** Voert een actie uit als `condition` waar is (niet nul).
+- `THEN line`: Springt naar regelnummer (impliciete GOTO).
+- `THEN statement`: Voert statement uit.
+**Operatoren:** `=`, `<>`, `<`, `>`, `<=`, `>=`.
 
 ### INDEXED
-**Syntax:** `INDEXED "filename", num_recs, rec_len, disk_num, sector_num`  
-Maakt een INDEXED bestand aan.
-- `INDEXED "voorraad", 100, 128, 0, 0`
+**Type:** File Directive  
+**Syntax:** `INDEXED "filename", key_len, rec_len, disk_num, sector_num`  
+**Beschrijving:** Creëert een INDEXED bestand.
+- Gedrag is vergelijkbaar met DIRECT in deze implementatie (Key-Value store).
 
 ### INPUT
-**Syntax:** `INPUT "Prompt: ", var`  
-Vraagt invoer van de gebruiker.
+**Type:** I/O Directive  
+**Syntax:** `INPUT [channel, opties] "Prompt: ", var1, var2...`  
+**Beschrijving:** Vraagt invoer van de gebruiker (standaard kanaal 0) of leest van een terminal-kanaal.
 - `INPUT "Naam: ", N$`
+- Ondersteunt `IOL=` opties voor geformatteerde invoer.
 
 ### INT
+**Type:** Numerieke Functie  
 **Syntax:** `INT(num)`  
-Geeft het grootste gehele getal kleiner dan of gelijk aan `num` (floor).
-- `INT(3.9)` -> `3`
+**Beschrijving:** Retourneert het grootste gehele getal kleiner dan of gelijk aan `num` (Floor).
+- `INT(3.9)` &rarr; `3`
+- `INT(-3.9)` &rarr; `-4`
 
 ### IOLIST
+**Type:** I/O Directive  
 **Syntax:** `line IOLIST item [, item ...]`  
-Definieert een lijst van variabelen en formatters voor I/O statements.
+**Beschrijving:** Definieert een herbruikbare lijst van variabelen en formatters voor I/O statements (`READ`, `WRITE`, `PRINT`, `INPUT`).
 **Items:**
-- Variabelen (bijv. `A$`, `B`)
-- Mnemonics (bijv. `'CS'`)
-- Cursor positie `@(c,r)`
-- Literals en Skip (`*`)
-**Gebruik:** `READ (1, IOL=100)`, `WRITE (1, IOL=100)`
-- `100 IOLIST A$, B, "Label", *`
+- **Variabelen:** `A$`, `B` (leest/schrijft waarde)
+- **Mnemonics:** `'CS'`, `'LF'` (alleen Terminal I/O)
+- **Cursor:** `@(col, row)` (alleen Terminal I/O)
+- **Literals:** `"Tekst"` (Schrijft tekst / Verwacht tekst bij Input)
+- **Skip:** `*` (Slaat veld over bij Input)
+**Gebruik:**
+Gerefereerd via `IOL=line` optie in I/O statement.
+```basic
+100 IOLIST A$, B, "Label", *
+200 READ (1, IOL=100)
+```
 
 ### IPT
+**Type:** Numerieke Functie  
 **Syntax:** `IPT(num)`  
-Geeft het gehele deel van een getal (truncation).
-- `IPT(3.9)` -> `3`
-- `IPT(-3.9)` -> `-3`
+**Beschrijving:** Retourneert het gehele deel van een getal door het af te kappen (Truncate).
+- `IPT(3.9)` &rarr; `3`
+- `IPT(-3.9)` &rarr; `-3`
+
+---
+
+## K
+
+### KEY
+**Type:** I/O Functie  
+**Syntax:** `KEY(channel [, ERR=line, END=line])`  
+**Beschrijving:** Retourneert de sleutel (key) van het **volgende** record in een DIRECT of SORT bestand zonder het record te lezen.
+- Gebruik dit om door keys te itereren (`KEY(1)`).
 
 ---
 
 ## L
 
-### KEY
-**Syntax:** `KEY(channel [, ERR=line, END=line])`  
-Geeft de sleutel van het *volgende* record in een DIRECT of SORT bestand.
-- `KEY(1)` -> Geeft volgende sleutel.
-- `KEY(1, ERR=100)` -> Springt naar 100 bij fout (bijv. EOF).
-
 ### LCS
+**Type:** String Functie  
 **Syntax:** `LCS(string)`  
-Converteert een string naar kleine letters (LowerCase).
-- `LCS("ABC")` -> `"abc"`
+**Beschrijving:** Converteert `string` naar kleine letters (LowerCase).
 
 ### LEN
+**Type:** String Functie  
 **Syntax:** `LEN(string)`  
-Geeft de lengte van een string.
-- `LEN("Test")` -> `4`
+**Beschrijving:** Retourneert het aantal karakters in `string`.
 
 ### LET
+**Type:** Assignment Directive  
 **Syntax:** `LET var = expr`  
-Wijst een waarde toe aan een variabele. Het woord `LET` is optioneel (impliciete assignment supported).
-- `A$ = "Hello"`
+**Beschrijving:** Wijst de waarde van `expr` toe aan variabele `var`.
+- Het sleutelwoord `LET` is optioneel (`A = 10` is geldig).
+- Ondersteunt substrings: `A$(1,3) = "ABC"`.
 
 ### LOG
+**Type:** Numerieke Functie  
 **Syntax:** `LOG(num)`  
-Geeft de natuurlijke logaritme van een getal.
-- `LOG(2.718)` -> `~1`
+**Beschrijving:** Retourneert de natuurlijke logaritme van `num`.
 
 ---
 
 ## M
 
 ### MAX
+**Type:** Numerieke/String Functie  
 **Syntax:** `MAX(item1, item2, ...)`  
-Geeft de grootste waarde uit een lijst van getallen of strings.
-- `MAX(1, 5, 2)` -> `5`
-- `MAX("A", "C", "B")` -> `"C"`
+**Beschrijving:** Retourneert de grootste waarde uit de lijst.
 
 ### MIN
+**Type:** Numerieke/String Functie  
 **Syntax:** `MIN(item1, item2, ...)`  
-Geeft de kleinste waarde uit een lijst van getallen of strings.
-- `MIN(1, 5, 2)` -> `1`
+**Beschrijving:** Retourneert de kleinste waarde uit de lijst.
 
 ### MOD
+**Type:** Numerieke Functie  
 **Syntax:** `MOD(num, div)`  
-Geeft de restwaarde van een deling (modulo).
-- `MOD(10, 3)` -> `1`
+**Beschrijving:** Retourneert de restwaarde van de deling `num / div`.
 
 ---
 
 ## N
 
 ### NEXT
+**Type:** Flow Control Directive  
 **Syntax:** `NEXT var`  
-Sluit een `FOR` lus af en verhoogt de teller.
+**Beschrijving:** Sluit een `FOR` lus af. Verhoogt de teller en springt terug als de eindconditie nog niet bereikt is.
 
 ### NOT
+**Type:** String Functie  
 **Syntax:** `NOT(string)`  
-Voert een bitwise NOT (inversie) uit op de karakters (0-255).
-- `NOT(CHR$(0))` -> `CHR$(255)`
+**Beschrijving:** Voert een bitwise NOT (inversie) uit op alle bytes in de string.
 
 ### NUM
+**Type:** Conversie Functie  
 **Syntax:** `NUM(string [, NTP=type, SIZ=round, ERR=line, ERC=code])`  
-Converteert een string naar een getal met uitgebreide opties.
-**Parameters:**
-- `NTP`: Conversietype (0=Decimal, default).
-- `SIZ`: Afrondingsprecisie (bijv. `0.01` rondt af op 2 decimalen).
-- `ERR`: Spring naar regelnummer bij fout.
-- `ERC`: Sla foutcode op in code-variabele.
-- `NUM("123.45")` -> `123.45`
+**Beschrijving:** Converteert `string` naar een getal en valideert dit.
+- `SIZ`: Rondt af op veelvoud van deze waarde (bijv. `0.01` voor geld).
+- `ERR`: Springt naar regelnummer bij ongeldige input.
 
 ---
 
 ## O
 
 ### ON ... GOTO / GOSUB
+**Type:** Flow Control Directive  
 **Syntax:** `ON val GOTO/GOSUB line1, line2...`  
-Conditionele sprong gebaseerd op een integer waarde.
-- Waarde <= 0: Eerste regel.
-- Waarde 1: Tweede regel.
-- ...
-- Waarde >= n: Laatste regel.
-- `ON X GOTO 100, 200, 300`
+**Beschrijving:** Springt naar het `val`-de regelnummer in de lijst.
+- Als `val` <= 0: Eerste regel.
+- Als `val` > aantal: Laatste regel.
 
 ### OPEN
-**Syntax:** `OPEN (chn) "filename" [, DIRECT|INDEXED|SERIAL]`  
-Opent een bestand op een specifiek kanaalnummer. Zoekt in `IPLINPUT` disks indien geen pad is opgegeven.
+**Type:** I/O Directive  
+**Syntax:** `OPEN (chn) "filename" [, Opties]`  
+**Beschrijving:** Opent een bestand op kanaalnummer `chn` (1-255). Kanaal 0 is de terminal.
+- Zoekt bestand via `IPLINPUT` paden.
+- Bestandsmodus (DIRECT, SERIAL) wordt automatisch gedetecteerd of kan geforceerd worden.
 
 ### OR
+**Type:** String Functie  
 **Syntax:** `OR(str1, str2)`  
-Voert een bitwise OR uit op de ASCII-waarden.
-- `OR(CHR$(1), CHR$(2))` -> `CHR$(3)`
+**Beschrijving:** Voert een bitwise OR uit op de bytes van twee strings.
 
 ---
 
 ## P
 
 ### POS
-**Syntax:** `POS(heystack, needle, start)` OF `POS(relational_expression [, step [, count]])`  
-Zoekt de positie van een substring.  
-**Geavanceerd Gebruik:**
-De POS functie evalueert een relationele expressie over de hele string en zoekt matches.
-- `POS("A" = A$)`: Zoek eerste voorkomen waar karakter gelijk is aan "A".
-- `POS("A" = A$, 1, 2)`: Zoek het **2e** voorkomen, stapgrootte 1.
-- `POS("A" = A$, -1, 1)`: Zoek achterstevoren (stap -1).
-- `POS(A$ = "Hello")`: Zoek waar substring A$ gelijk is aan "Hello" (substring match).
-- `POS(A$ > "B")`: Zoek positie waar karakters groter zijn dan "B".
-**Parameters:**
-- `relational_expression`: Formaat `"needle" RELOP "haystack"` of andersom. RELOPs: `=`, `<>`, `<`, `>`, `<=`, `>=`.
-- `step`: Stapgrootte voor de zoekloop (positief = vooruit, negatief = achteruit). Default `1`.
-- `count`: Welke match teruggeven (1e, 2e...). Indien `0`, geeft het **totaal aantal matches** terug.
-
+**Type:** String/Logic Functie  
+**Syntax:** `POS(heystack, needle, start)` OF `POS(relational_expr [, step [, count]])`  
+**Beschrijving:** 
+1. `POS("Data", "a", 1)`: Zoekt "a" in "Data" vanaf index 1.
+2. `POS("A" = A$, 1, 1)`: Zoekt locatie waar conditie waar is.
 **Voorbeelden:**
-- `POS("S" = "MISSISSIPPI")` -> `3`
-- `POS("S" = "MISSISSIPPI", 1, 0)` -> `4` (totaal aantal 'S'-en)
-- `POS("S" = "MISSISSIPPI", -1, 1)` -> `7` (laatste 'S', gezien vanaf eind)
+- `POS("abc" = "a..b..c", 1, 2)` &rarr; Zoekt 2e match.
 
 ### PRINT
-**Syntax:** `PRINT expr, ...`  
-Toont tekst of waarden op het scherm.
-- Mnemonics: `PRINT 'CS'` (Clear Screen), `'@(col,row)'` (Cursor Positie).
+**Type:** I/O Directive  
+**Syntax:** `PRINT (chn) expr, ...`  
+**Beschrijving:** Schrijft tekst naar kanaal.
+- Kanaal 0 (of weggelaten): Scherm.
+- Ondersteunt Mnemonics (`'CS'`, `'@(c,r)'`) op terminals.
+- Komma `,` tabs, puntkomma `;` plakt aan elkaar.
 
 ---
 
 ## R
 
 ### READ
-**Syntax:** `READ (chn, KEY=k, IND=i) var1, var2...`  
-Leest data uit een geopend bestand.
-**Effect:**
-- Leest waarden uit het bestand in de opgegeven variabelen.
-- Als `KEY` of `IND` wordt gebruikt, wordt direct gesprongen naar dat record.
-- Bij sequentiële toegang (zonder `KEY`/`IND`) wordt gelezen vanaf de huidige pointerpositie.
-**Side Effects:**
-- **File Pointer Update:** Verhoogt de interne file pointer na het lezen (in tegenstelling tot `EXTRACT`).
-- Bij `SERIAL` files: wijst naar het volgende record.
-- `READ (1, KEY="Klant1") Naam$, Adres$`
-- `READ (1) VolgendeRegel$`
+**Type:** I/O Directive  
+**Syntax:** `READ (chn [, KEY=k, IND=i, IOL=line]) var1, ...`  
+**Beschrijving:** Leest velden uit een record.
+- **Sequentieel:** Leest volgend record en verhoogt file pointer.
+- **Random Access:** `KEY="k"` leest specifiek record en verhoogt pointer NIET (tenzij SERIAL?). *Correctie:* READ verhoogt pointer normaal wel, EXTRACT niet.
+- `DOM=line`: Spring naar line bij "Duplicate/Key Not Found" (voor READ meestal KNF).
+- `END=line`: Spring naar line bij EOF.
+- `ERR=line`: Spring naar line bij algemene fout.
 
-### REM / REMARK
-**Syntax:** `REM comment`  
-Regel met commentaar, wordt genegeerd door de interpreter.
-**Effect:** Geen.  
-**Side Effects:** Geen.
-- `REM Dit is commentaar`
-- `! Dit is ook commentaar`
+### REM
+**Type:** Commentaar  
+**Syntax:** `REM tekst` of `! tekst`  
+**Beschrijving:** Wordt genegeerd.
 
 ### REMOVE
-**Syntax:** `REMOVE (chn [, KEY=string])`  
-Verwijdert een record uit een bestand.
-**Effect:**
-- Verwijdert het fysieke record uit de dataset van het bestand.
-- `KEY=...`: Verwijdert het record met de opgegeven sleutel.
-- Zonder KEY: Verwijdert het laatst gelezen of geëxtraheerde record (`last_key`).
-**Side Effects:**
-- De `last_key` referentie kan na uitvoering ongeldig zijn voor verdere operaties op diezelfde sleutel.
-- Ondersteunt `DOM` handling als de sleutel niet bestaat.
-- `REMOVE (1, KEY="1001")`
-- `REMOVE (1)` (verwijdert laatst gelezen record)
+**Type:** File Directive  
+**Syntax:** `REMOVE (chn [, KEY=k])`  
+**Beschrijving:** Verwijdert een record.
+- Zonder `KEY`: Verwijdert het laatst benaderde record.
 
 ### RETURN
+**Type:** Flow Control Directive  
 **Syntax:** `RETURN`  
-Keert terug van een subroutine aangeroepen met `GOSUB`.
-**Effect:**
-- Hervat executie op de regel direct na de `GOSUB`.
-**Side Effects:**
-- Verwijdert de bovenste return-adres van de call stack.
+**Beschrijving:** Keert terug van `GOSUB`.
 
 ### RND
+**Type:** Numerieke Functie  
 **Syntax:** `RND([seed])`  
-Geeft een willekeurig getal tussen 0 en 1.
-**Effect:** Retourneert een float.
-- `RND(1)` -> `0.123...`
+**Beschrijving:** Retourneert een pseudo-willekeurig getal tussen 0.0 en 1.0.
 
 ### ROUND
-**Syntax:** `ROUND(num, decimals)`  
-Rondt een getal af op het opgegeven aantal decimalen.
-- `ROUND(3.14159, 2)` -> `3.14`
+**Type:** Numerieke Functie  
+**Syntax:** `ROUND(num, prec)`  
+**Beschrijving:** Rondt `num` af op `prec` decimalen.
 
 ---
 
 ## S
 
 ### SELECT
+**Type:** I/O Directive  
 **Syntax:** `SELECT (chn) ...`  
-(Gedeeltelijke implementatie) Selecteert records uit een bestand.
-- `SELECT (1) WHERE Naam$ > "M"` (hypothetisch voorbeeld)
+**Beschrijving:** (Gedeeltelijk) Filtert records.
 
 ### SERIAL
-**Syntax:** `SERIAL "filename", rec_len, disk_num, sector_num`  
-Maakt een SERIAL bestand aan (oplopend, geen sleutel).
-**Effect:** Creëert een nieuw JSON bestand met metadata `type="SERIAL"` op de opgegeven disk.
-- `SERIAL "log", 80`
+**Type:** File Directive  
+**Syntax:** `SERIAL "filename", rec_len, disk_num`  
+**Beschrijving:** Creëert een serieel bestand (alleen toevoegen/lezen).
 
 ### SETTRACE
-**Syntax:** `SETTRACE [(channel)]`  
-Start het tracen van programma-executie. Standaard op kanaal 0 (console).
-**Effect:**
-- Toont regelnummer en broncode voor elke regel die wordt uitgevoerd (in FULL mode).
-- `SETTRACE`
-- `SETTRACE (2)`
+**Type:** Debug Directive  
+**Syntax:** `SETTRACE [(chn)]`  
+**Beschrijving:** Activeert regel-voor-regel logging van executie.
 
 ### SET TRACEMODE
-**Syntax:** `SET TRACEMODE string`  
-Configureert de details van de trace output.
-**Opties (string):**
-- `"FULL"`: Volledige regel (default).
-- `"PARTIAL"`: Geparseerde tokens/directives.
-- `"SKIPCALLS"`: Trace niet in `CALL` sub-programma's.
-- `"SKIPGOSUBS"`: Trace niet in `GOSUB` routines.
-- `"DELAY=n"`: Pauzeer `n` seconden na elke regel.
-**Combinaties:** Gebruik `|` (pipe).
-- `SET TRACEMODE "PARTIAL|D=0.2"`
-- `SET TRACEMODE "SKIPCALLS|F"`
+**Type:** Debug Directive  
+**Syntax:** `SET TRACEMODE "mode"`  
+**Beschrijving:** "FULL", "PARTIAL", "SKIPCALLS".
 
 ### SGN
+**Type:** Numerieke Functie  
 **Syntax:** `SGN(num)`  
-Geeft het teken van een getal: 1 (positief), -1 (negatief), 0 (nul).
-- `SGN(-10)` -> `-1`
+**Beschrijving:** Teken functie: -1, 0, of 1.
 
 ### SIN
+**Type:** Numerieke Functie  
 **Syntax:** `SIN(num)`  
-Geeft de sinus van een hoek (in radialen).
-- `SIN(1.57)` -> `~1`
+**Beschrijving:** Sinus.
 
 ### SORT
-**Syntax:** `SORT "filename", key_len, rec_len, disk_num, sector_num`  
-Maakt een SORT bestand aan.
-**Effect:** Creëert een nieuw JSON bestand met metadata `type="SORT"` op de opgegeven disk.
-- `SORT "klant_index", 10, 128`
+**Type:** File Directive  
+**Syntax:** `SORT "name", klen, rlen...`  
+**Beschrijving:** Creëert een SORT bestand (External Sort Index).
 
 ### SQR
+**Type:** Numerieke Functie  
 **Syntax:** `SQR(num)`  
-Geeft de vierkantswortel van een getal.
-- `SQR(16)` -> `4`
+**Beschrijving:** Vierkantswortel.
 
 ### STOP
+**Type:** Flow Control Directive  
 **Syntax:** `STOP`  
-Stopt de uitvoering van het programma onmiddellijk.
-**Effect:**
-- Beëindigt programma/trace.
-- `STOP`
+**Beschrijving:** Stopt programma.
 
 ### STR$
+**Type:** Conversie Functie  
 **Syntax:** `STR$(num)`  
-Converteert een getal naar een string.
-- `STR$(123)` -> `"123"`
+**Beschrijving:** Getal naar string.
 
 ---
 
 ## T
 
 ### TAN
+**Type:** Numerieke Functie  
 **Syntax:** `TAN(num)`  
-Geeft de tangens van een hoek (in radialen).
-- `TAN(0.785)` -> `~1`
+**Beschrijving:** Tangens.
 
 ---
 
 ## U
 
 ### UCS
+**Type:** String Functie  
 **Syntax:** `UCS(string)`  
-Converteert een string naar hoofdletters (UpperCase).
-- `UCS("abc")` -> `"ABC"`
+**Beschrijving:** Converteert naar Hoofdletters.
 
 ---
 
 ## V
 
 ### VAL
+**Type:** String Functie  
 **Syntax:** `VAL(string)`  
-Converteert een string naar een getal.
-**Effect:**
-- "123" -> 123.0
-- Probeert intelligente parsing; negeert niet-numerieke suffixen indien mogelijk.
-- `VAL("100")` -> `100.0`
+**Beschrijving:** Converteert string naar getal.
+- `VAL("123abc")` &rarr; `123`
 
 ---
 
 ## X
 
 ### XOR
+**Type:** String Functie  
 **Syntax:** `XOR(str1, str2)`  
-Voert een bitwise XOR (Exclusive OR) uit op de ASCII-waarden.
-- `XOR("A", "C")` -> resultaat met bitwise XOR
+**Beschrijving:** Bitwise XOR.
 
 ---
 
 ## W
 
 ### WRITE
-**Syntax:** `WRITE (chn, KEY=k, IND=i) var1, var2...`  
-Schrijft data naar een geopend bestand.
-**Effect:**
-- Schrijft de waarden uit de variabelen naar het bestand.
-- Overschrijft bestaande data als de sleutel al bestaat.
-**Side Effects:**
-- Update `last_key` van het kanaal.
-- `WRITE (1, KEY="100") "Jan", "Amsterdam"`
+**Type:** I/O Directive  
+**Syntax:** `WRITE (chn [, KEY=k, IND=i, IOL=line]) val1, ...`  
+**Beschrijving:** Schrijft data naar een record.
+- **Nieuw Record:** Als KEY niet bestaat.
+- **Update:** Als KEY bestaat.
+- `DOM=line`: "Duplicate or Missing". Bij WRITE, als record al bestaat en niet mag (is dat zo? Meestal overwrite WRITE gewoon).
 
 ---
 
 ## Terminal Mnemonics
 
-De interpreter ondersteunt de volgende mnemonics in `PRINT` statements (bijv. `PRINT 'CS'`):
+De interpreter ondersteunt Mnemonics in `PRINT` statements (bijv. `PRINT 'CS'`).
 
 | Mnemonic | Functie | Effect |
 | :--- | :--- | :--- |
 | `'CS'` | Clear Screen | Wist het scherm en zet cursor linksboven. |
-| `'BR'` | Begin Reverse | Start omgekeerde video (achtergrond/voorgrond wissel). |
+| `'BR'` | Begin Reverse | Start omgekeerde video. |
 | `'ER'` | End Reverse | Stopt omgekeerde video. |
 | `'BU'` | Begin Underline | Start onderstrepen. |
 | `'EU'` | End Underline | Stopt onderstrepen. |
-| `'VT'` | Vertical Tab / Up | Cursor één regel omhoog. |
-| `'LF'` | Line Feed / Down | Cursor één regel omlaag. |
-| `'BS'` | Backspace | Cursor één positie naar links. |
-| `'CH'` | Cursor Home | Zet cursor linksboven (zonder wissen). |
-| `'CE'` | Clear to End of Screen | Wist van cursor tot einde scherm. |
-| `'CL'` | Clear to End of Line | Wist van cursor tot einde regel. |
-| `'LD'` | Line Delete | Verwijdert huidige regel. |
-| `'@' (c, r)` | Cursor Position | Zet cursor op kolom `c`, rij `r`. |
+| `'VT'` | Vertical Tab | Cursor één regel omhoog. |
+| `'LF'` | Line Feed | Cursor één regel omlaag. |
+| `'BS'` | Backspace | Cursor links. |
+| `'CH'` | Cursor Home | Cursor naar 0,0. |
+| `'CE'` | Clear to EOS | Wist tot einde scherm. |
+| `'CL'` | Clear to EOL | Wist tot einde regel. |
+| `'LD'` | Line Delete | Verwijdert regel. |
+| `'@'(c,r)`| Cursor Pos | Zet cursor op (col, row). |
 

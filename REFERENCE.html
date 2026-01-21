@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -12,7 +13,7 @@
             --code-bg: #f8f9fa;
             --sidebar-width: 250px;
         }
-        
+
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             line-height: 1.6;
@@ -64,13 +65,37 @@
             width: 100%;
         }
 
-        h1, h2, h3 {
+        h1,
+        h2,
+        h3 {
             color: var(--primary-color);
         }
 
-        h1 { border-bottom: 2px solid var(--accent-color); padding-bottom: 10px; }
-        h2 { border-bottom: 1px solid #ddd; padding-bottom: 5px; margin-top: 40px; }
-        h3 { margin-top: 30px; color: var(--accent-color); }
+        h1 {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+        }
+
+        h2 {
+            border-bottom: 1px solid #ddd;
+            padding-bottom: 5px;
+            margin-top: 40px;
+        }
+
+        h3 {
+            margin-top: 30px;
+            color: var(--accent-color);
+            font-size: 1.3em;
+        }
+
+        .cmd-type {
+            font-size: 0.85em;
+            color: #777;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+            display: block;
+        }
 
         code {
             background: var(--code-bg);
@@ -101,7 +126,8 @@
             margin: 20px 0;
         }
 
-        th, td {
+        th,
+        td {
             border: 1px solid #ddd;
             padding: 12px;
             text-align: left;
@@ -113,419 +139,560 @@
 
         .syntax {
             font-weight: bold;
-            color: #555;
+            color: #444;
             background: #eef;
-            padding: 5px 10px;
-            display: inline-block;
+            padding: 8px 12px;
+            display: block;
             border-radius: 4px;
             margin-bottom: 10px;
-        }
-
-        .section-link {
-            display: block;
-            margin-top: -80px;
-            padding-top: 80px;
-            visibility: hidden;
+            border-left: 4px solid var(--accent-color);
         }
     </style>
 </head>
+
 <body>
 
-<nav>
-    <h3>Contents</h3>
-    <ul>
-        <li><a href="#config">Configuration</a></li>
-        <li><a href="#a">A</a></li>
-        <li><a href="#c">C</a></li>
-        <li><a href="#d">D</a></li>
-        <li><a href="#e">E</a></li>
-        <li><a href="#f">F</a></li>
-        <li><a href="#g">G</a></li>
-        <li><a href="#h">H</a></li>
-        <li><a href="#i">I</a></li>
-        <li><a href="#l">L</a></li>
-        <li><a href="#m">M</a></li>
-        <li><a href="#n">N</a></li>
-        <li><a href="#o">O</a></li>
-        <li><a href="#p">P</a></li>
-        <li><a href="#r">R</a></li>
-        <li><a href="#s">S</a></li>
-        <li><a href="#t">T</a></li>
-        <li><a href="#u">U</a></li>
-        <li><a href="#v">V</a></li>
-        <li><a href="#x">X</a></li>
-        <li><a href="#w">W</a></li>
-        <li><a href="#mnemonics">Terminal Mnemonics</a></li>
-    </ul>
-</nav>
-
-<main>
-    <h1>Thoroughbred Basic Interpreter <br><small>Reference Manual</small></h1>
-    <p>This manual contains an alphabetical overview of all implemented commands (directives) and functions in this interpreter.</p>
-
-    <h2 id="config">Configuration and Disks</h2>
-    <p>The interpreter supports the <strong>Thoroughbred Basic 'Disk' concept</strong>. This maps logical disk numbers to physical directories.</p>
-
-    <h3>IPLINPUT</h3>
-    <p>On startup, the interpreter reads the configuration file <code>IPLINPUT</code> from the current working directory.</p>
-    <strong>Format:</strong>
-    <pre><code>D0 = ./data/d0
-D1 = ./data/backup
-DA = /var/thoroughbred/data</code></pre>
-    <ul>
-        <li>Each disk name starts with <code>D</code>, followed by 1 character (digit or letter).</li>
-        <li>Paths can be relative or absolute.</li>
-    </ul>
-
-    <h3>File Searching</h3>
-    <p>When opening a file (<code>OPEN</code>), the interpreter searches for the file in the defined disks in <strong>alphabetical order</strong> of the disk name (e.g., first <code>D0</code>, then <code>D1</code>, then <code>DA</code>...), unless a specific path is provided.</p>
-
-    <h3>Creating Files</h3>
-    <p>For commands like <code>DIRECT</code>, <code>INDEXED</code>, <code>SERIAL</code>, and <code>SORT</code>, a disk number can be specified to determine where the file is created.</p>
-
-    <h2 id="a">A</h2>
-    
-    <h3>ABS</h3>
-    <div class="syntax">ABS(num)</div>
-    <p>Returns the absolute value of a number.</p>
-    <ul><li><code>ABS(-5)</code> &rarr; <code>5</code></li></ul>
-
-    <h3>ASC</h3>
-    <div class="syntax">ASC(string)</div>
-    <p>Returns the ASCII value of the first character of the string.</p>
-    <ul><li><code>ASC("A")</code> &rarr; <code>65</code></li></ul>
-
-    <h3>ATH</h3>
-    <div class="syntax">ATH(string)</div>
-    <p>(ASCII to Hex) Converts a hexadecimal string to a binary string (bytes). If length is odd, a '0' is prepended.</p>
-    <ul><li><code>ATH("41")</code> &rarr; <code>"A"</code></li></ul>
-
-    <h3>ATN</h3>
-    <div class="syntax">ATN(num)</div>
-    <p>Returns the arctangent of a number (in radians).</p>
-
-    <h2 id="c">C</h2>
-
-    <h3>CALL</h3>
-    <div class="syntax">CALL "program", [ERR=line], [args...]</div>
-    <p>Calls an external sub-program with optional arguments. Starts a new interpreter context.</p>
-
-    <h3>CHR$</h3>
-    <div class="syntax">CHR$(code)</div>
-    <p>Returns the character corresponding to the ASCII code.</p>
-
-    <h3>CLOSE</h3>
-    <div class="syntax">CLOSE (channel)</div>
-    <p>Closes an open file channel and flushes changes to disk.</p>
-
-    <h3>COS</h3>
-    <div class="syntax">COS(num)</div>
-    <p>Returns the cosine of an angle (in radians).</p>
-
-    <h3>CVS</h3>
-    <div class="syntax">CVS(string, mode)</div>
-    <p>Converts/manipulates a string based on mode bits:</p>
-    <ul>
-        <li>1: Strip leading spaces</li>
-        <li>2: Strip trailing spaces</li>
-        <li>16: To Uppercase</li>
-        <li>32: To Lowercase</li>
-    </ul>
-
-    <h2 id="d">D</h2>
-
-    <h3>DIM</h3>
-    <div class="syntax">DIM var[size](len), ...</div>
-    <p>Defines arrays or reserves memory for string arrays.</p>
-
-    <h3>DIRECT</h3>
-    <div class="syntax">DIRECT "filename", key_len, rec_len, disk_num, sector_num</div>
-    <p>Creates a new DIRECT file (Keyed). <code>disk_num</code> specifies the target disk.</p>
-
-    <h3>DTN</h3>
-    <div class="syntax">DTN(string [, mask])</div>
-    <p>Converts a date string to a numeric Julian Day Number.</p>
-
-    <h2 id="e">E</h2>
-
-    <h3>END</h3>
-    <div class="syntax">END</div>
-    <p>Terminates program execution and closes all files.</p>
-
-    <h3>ENDTRACE</h3>
-    <div class="syntax">ENDTRACE</div>
-    <p>Stops the trace mode started by <code>SETTRACE</code>.</p>
-
-    <h3>ENTER</h3>
-    <div class="syntax">ENTER var1, var2...</div>
-    <p>Used in a <code>CALL</code>ed program to receive arguments.</p>
-
-    <h3>ERASE</h3>
-    <div class="syntax">ERASE "filename"</div>
-    <p>Permanently removes a file from disk.</p>
-
-    <h3>EXECUTE</h3>
-    <div class="syntax">EXECUTE string_expr [, OPT="LOCAL"]</div>
-    <p>Dynamically executes BASIC code. Can modify the running program.</p>
-
-    <h3>EXIT</h3>
-    <div class="syntax">EXIT</div>
-    <p>Exits a sub-program and returns to the caller.</p>
-
-    <h3>EXP</h3>
-    <div class="syntax">EXP(num)</div>
-    <p>Returns <code>e</code> to the power of <code>num</code>.</p>
-
-    <h3>EXTRACT / EXTRACTRECORD</h3>
-    <div class="syntax">EXTRACT (chn, KEY=k) ...</div>
-    <p>Reads a record and locks it for updates. Does <strong>not</strong> advance the file pointer.</p>
-
-    <h2 id="f">F</h2>
-
-    <h3>FOR</h3>
-    <div class="syntax">FOR var = start TO end [STEP step]</div>
-    <p>Starts a loop.</p>
-
-    <h3>FPT</h3>
-    <div class="syntax">FPT(num)</div>
-    <p>Returns the fractional part of a number.</p>
-
-    <h2 id="g">G</h2>
-
-    <h3>GOSUB</h3>
-    <div class="syntax">GOSUB line</div>
-    <p>Jumps to a subroutine. Return with <code>RETURN</code>.</p>
-
-    <h3>GOTO</h3>
-    <div class="syntax">GOTO line</div>
-    <p>Unconditional jump to a line number.</p>
-
-    <h2 id="h">H</h2>
-
-    <h3>HTA</h3>
-    <div class="syntax">HTA(string)</div>
-    <p>(Hex to ASCII) Converts a string to its hexadecimal representation.</p>
-
-    <h2 id="i">I</h2>
-
-    <h3>IF</h3>
-    <div class="syntax">IF condition THEN line/stmt</div>
-    <p>Conditional logic.</p>
-
-    <h3>INDEXED</h3>
-    <div class="syntax">INDEXED "filename", ...</div>
-    <p>Creates an INDEXED file.</p>
-
-    <h3>INPUT</h3>
-    <div class="syntax">INPUT "Prompt: ", var</div>
-    <p>Requests user input.</p>
-
-    <h3>INT</h3>
-    <div class="syntax">INT(num)</div>
-    <p>Returns the floor of a number (largest integer <= num).</p>
-
-    <h3>IOLIST</h3>
-    <div class="syntax">line IOLIST item [, item ...]</div>
-    <p>Defines a reusable list of variables/formatters for I/O statements.</p>
-    <strong>Items:</strong> Variables, Mnemonics, Cursor <code>@(c,r)</code>, Literals.
-    <br><strong>Usage:</strong> <code>READ (1, IOL=100)</code>
-
-    <h3>IPT</h3>
-    <div class="syntax">IPT(num)</div>
-    <p>Returns the integer part (truncation) of a number.</p>
-
-    <h2 id="l">L</h2>
-
-    <h3>KEY</h3>
-    <div class="syntax">KEY(channel [, ERR=ln, END=ln])</div>
-    <p>Returns the key of the <strong>next</strong> record in a DIRECT/SORT file.</p>
-
-    <h3>LCS</h3>
-    <div class="syntax">LCS(string)</div>
-    <p>Converts string to Lowercase.</p>
-
-    <h3>LEN</h3>
-    <div class="syntax">LEN(string)</div>
-    <p>Returns the length of a string.</p>
-
-    <h3>LET</h3>
-    <div class="syntax">LET var = expr</div>
-    <p>Assigns a value. The keyword <code>LET</code> is optional.</p>
-
-    <h3>LOG</h3>
-    <div class="syntax">LOG(num)</div>
-    <p>Returns the natural logarithm.</p>
-
-    <h2 id="m">M</h2>
-
-    <h3>MAX</h3>
-    <div class="syntax">MAX(item1, item2...)</div>
-    <p>Returns the largest value.</p>
-
-    <h3>MIN</h3>
-    <div class="syntax">MIN(item1, item2...)</div>
-    <p>Returns the smallest value.</p>
-
-    <h3>MOD</h3>
-    <div class="syntax">MOD(num, div)</div>
-    <p>Returns the remainder of division.</p>
-
-    <h2 id="n">N</h2>
-
-    <h3>NEXT</h3>
-    <div class="syntax">NEXT var</div>
-    <p>Closes a <code>FOR</code> loop.</p>
-
-    <h3>NOT</h3>
-    <div class="syntax">NOT(string)</div>
-    <p>Bitwise NOT inversion of string characters.</p>
-
-    <h3>NUM</h3>
-    <div class="syntax">NUM(str [, options])</div>
-    <p>Converts string to number with formatting options.</p>
-
-    <h2 id="o">O</h2>
-
-    <h3>ON ... GOTO / GOSUB</h3>
-    <div class="syntax">ON val GOTO line1, line2...</div>
-    <p>Coumpount/Conditional jump based on integer index.</p>
-
-    <h3>OPEN</h3>
-    <div class="syntax">OPEN (chn) "filename"</div>
-    <p>Opens a file on a channel.</p>
-
-    <h3>OR</h3>
-    <div class="syntax">OR(str1, str2)</div>
-    <p>Bitwise OR of string characters.</p>
-
-    <h2 id="p">P</h2>
-
-    <h3>POS</h3>
-    <div class="syntax">POS(haystack, needle) / POS(relation)</div>
-    <p>Finds position of a substring or matching condition.</p>
-
-    <h3>PRINT</h3>
-    <div class="syntax">PRINT expr...</div>
-    <p>Outputs text to console.</p>
-
-    <h2 id="r">R</h2>
-
-    <h3>READ</h3>
-    <div class="syntax">READ (chn, KEY=k) vars...</div>
-    <p>Reads data from a file. Advances file pointer.</p>
-
-    <h3>REM</h3>
-    <div class="syntax">REM comment</div>
-    <p>Comment line.</p>
-
-    <h3>REMOVE</h3>
-    <div class="syntax">REMOVE (chn [, KEY=k])</div>
-    <p>Deletes a record from a file.</p>
-
-    <h3>RETURN</h3>
-    <div class="syntax">RETURN</div>
-    <p>Returns from a subroutine.</p>
-
-    <h3>RND</h3>
-    <div class="syntax">RND([seed])</div>
-    <p>Returns random number between 0 and 1.</p>
-
-    <h3>ROUND</h3>
-    <div class="syntax">ROUND(num, decimals)</div>
-    <p>Rounds a number.</p>
-
-    <h2 id="s">S</h2>
-
-    <h3>SELECT</h3>
-    <div class="syntax">SELECT (chn) ...</div>
-    <p>Selects records (Partial implementation).</p>
-
-    <h3>SERIAL</h3>
-    <div class="syntax">SERIAL "name", ...</div>
-    <p>Creates a SERIAL file.</p>
-
-    <h3>SETTRACE</h3>
-    <div class="syntax">SETTRACE [(chn)]</div>
-    <p>Enables debug tracing.</p>
-
-    <h3>SGN</h3>
-    <div class="syntax">SGN(num)</div>
-    <p>Returns sign (-1, 0, 1) of number.</p>
-
-    <h3>SIN</h3>
-    <div class="syntax">SIN(num)</div>
-    <p>Sine function.</p>
-
-    <h3>SORT</h3>
-    <div class="syntax">SORT "name", ...</div>
-    <p>Creates a SORT file.</p>
-
-    <h3>SQR</h3>
-    <div class="syntax">SQR(num)</div>
-    <p>Square root.</p>
-
-    <h3>STOP</h3>
-    <div class="syntax">STOP</div>
-    <p>Halts execution.</p>
-
-    <h3>STR$</h3>
-    <div class="syntax">STR$(num)</div>
-    <p>Converts number to string.</p>
-
-    <h2 id="t">T</h2>
-
-    <h3>TAN</h3>
-    <div class="syntax">TAN(num)</div>
-    <p>Tangent function.</p>
-
-    <h2 id="u">U</h2>
-
-    <h3>UCS</h3>
-    <div class="syntax">UCS(string)</div>
-    <p>Converts string to Uppercase.</p>
-
-    <h2 id="v">V</h2>
-
-    <h3>VAL</h3>
-    <div class="syntax">VAL(string)</div>
-    <p>Converts string to number.</p>
-
-    <h2 id="x">X</h2>
-
-    <h3>XOR</h3>
-    <div class="syntax">XOR(str1, str2)</div>
-    <p>Bitwise XOR of strings.</p>
-
-    <h2 id="w">W</h2>
-
-    <h3>WRITE</h3>
-    <div class="syntax">WRITE (chn, KEY=k, IND=i) vars...</div>
-    <p>Writes data to a file. Overwrites if key exists.</p>
-
-    <h2 id="mnemonics">Terminal Mnemonics</h2>
-    <p>Supported mnemonics for <code>PRINT</code> statements:</p>
-
-    <table>
-        <thead>
-            <tr><th>Mnemonic</th><th>Function</th><th>Effect</th></tr>
-        </thead>
-        <tbody>
-            <tr><td><code>'CS'</code></td><td>Clear Screen</td><td>Clears screen, moves cursor to top-left.</td></tr>
-            <tr><td><code>'BR'</code></td><td>Begin Reverse</td><td>Starts reverse video.</td></tr>
-            <tr><td><code>'ER'</code></td><td>End Reverse</td><td>Stops reverse video.</td></tr>
-            <tr><td><code>'BU'</code></td><td>Begin Underline</td><td>Starts underline.</td></tr>
-            <tr><td><code>'EU'</code></td><td>End Underline</td><td>Stops underline.</td></tr>
-            <tr><td><code>'VT'</code></td><td>Vertical Tab</td><td>Cursor Up.</td></tr>
-            <tr><td><code>'LF'</code></td><td>Line Feed</td><td>Cursor Down.</td></tr>
-            <tr><td><code>'BS'</code></td><td>Backspace</td><td>Cursor Left.</td></tr>
-            <tr><td><code>'CH'</code></td><td>Cursor Home</td><td>Moves cursor to top-left (no clear).</td></tr>
-            <tr><td><code>'CE'</code></td><td>Clear to EOS</td><td>Clears to end of screen.</td></tr>
-            <tr><td><code>'CL'</code></td><td>Clear to EOL</td><td>Clears to end of line.</td></tr>
-            <tr><td><code>'LD'</code></td><td>Line Delete</td><td>Deletes current line.</td></tr>
-            <tr><td><code>'@'(c,r)</code></td><td>Cursor Pos</td><td>Moves cursor to column c, row r.</td></tr>
-        </tbody>
-    </table>
-
-</main>
+    <nav>
+        <h3>Contents</h3>
+        <ul>
+            <li><a href="#config">Configuration</a></li>
+            <li><a href="#a">A</a></li>
+            <li><a href="#c">C</a></li>
+            <li><a href="#d">D</a></li>
+            <li><a href="#e">E</a></li>
+            <li><a href="#f">F</a></li>
+            <li><a href="#g">G</a></li>
+            <li><a href="#h">H</a></li>
+            <li><a href="#i">I</a></li>
+            <li><a href="#k">K</a></li>
+            <li><a href="#l">L</a></li>
+            <li><a href="#m">M</a></li>
+            <li><a href="#n">N</a></li>
+            <li><a href="#o">O</a></li>
+            <li><a href="#p">P</a></li>
+            <li><a href="#r">R</a></li>
+            <li><a href="#s">S</a></li>
+            <li><a href="#t">T</a></li>
+            <li><a href="#u">U</a></li>
+            <li><a href="#v">V</a></li>
+            <li><a href="#w">W</a></li>
+            <li><a href="#x">X</a></li>
+            <li><a href="#mnemonics">Terminal Mnemonics</a></li>
+        </ul>
+    </nav>
+
+    <main>
+        <h1>Thoroughbred Basic Interpreter <br><small>Reference Manual</small></h1>
+        <p>This manual provides a detailed alphabetical overview of all implemented directives (commands) and functions
+            in this interpreter.</p>
+
+        <h2 id="config">Configuration and Disks</h2>
+        <p>The interpreter uses a <strong>'Disk' system</strong> for file management, allowing logical disk names (like
+            <code>D0</code>, <code>D1</code>) to map to physical directories on the host system.</p>
+
+        <h3>IPLINPUT</h3>
+        <p>On startup, the interpreter reads the configuration file <code>IPLINPUT</code> from the current working
+            directory.</p>
+        <strong>Format:</strong>
+        <pre><code>DISKNAME = /path/to/directory</code></pre>
+
+        <strong>Example:</strong>
+        <pre><code>D0 = ./data/primary
+D1 = ./data/backup</code></pre>
+        <p>For file operations (like <code>OPEN</code>), the system searches in the order: <code>D0</code>,
+            <code>D1</code>, etc., unless a specific path or disk number is provided.</p>
+
+        <h3>Creating Files</h3>
+        <p>Commands like <code>DIRECT</code>, <code>INDEXED</code>, <code>SERIAL</code>, and <code>SORT</code> accept a
+            disk number to specify where the file should be created.</p>
+
+        <h2 id="a">A</h2>
+
+        <h3>ABS</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">ABS(num)</div>
+        <p>Returns the absolute value of the number <code>num</code>.</p>
+        <p><strong>Examples:</strong> <code>ABS(-5)</code> &rarr; <code>5</code></p>
+
+        <h3>ASC</h3>
+        <span class="cmd-type">String Function</span>
+        <div class="syntax">ASC(string)</div>
+        <p>Returns the decimal ASCII value of the <strong>first</strong> character of <code>string</code>.</p>
+        <p><strong>Examples:</strong> <code>ASC("A")</code> &rarr; <code>65</code></p>
+
+        <h3>ATH</h3>
+        <span class="cmd-type">Conversion Function</span>
+        <div class="syntax">ATH(hex_string)</div>
+        <p>Converts a hexadecimal string to a binary string (ASCII). If the input string has an odd length, a '0' is
+            prepended automatically.</p>
+        <p><strong>Examples:</strong> <code>ATH("41")</code> &rarr; <code>"A"</code></p>
+
+        <h3>ATN</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">ATN(num)</div>
+        <p>Returns the arctangent of <code>num</code> in radians.</p>
+
+        <h2 id="c">C</h2>
+
+        <h3>CALL</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">CALL "program", [ERR=line], [args...]</div>
+        <p>Starts the execution of an external BASIC program as a subroutine.</p>
+        <ul>
+            <li>Creates a <strong>new execution context</strong>. Variables from the caller are <strong>not</strong>
+                visible to the called program unless explicitly passed.</li>
+            <li>The called program uses <code>ENTER</code> to receive arguments.</li>
+            <li><code>EXIT</code> returns control to the caller (instruction after <code>CALL</code>).</li>
+        </ul>
+
+        <h3>CHR$</h3>
+        <span class="cmd-type">String Function</span>
+        <div class="syntax">CHR$(code)</div>
+        <p>Returns the character corresponding to the ASCII code (0-255).</p>
+
+        <h3>CLOSE</h3>
+        <span class="cmd-type">I/O Directive</span>
+        <div class="syntax">CLOSE (channel)</div>
+        <p>Closes the file opened on <code>channel</code>. Flushes all buffers to disk.</p>
+
+        <h3>COS</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">COS(num)</div>
+        <p>Returns the cosine of angle <code>num</code> (in radians).</p>
+
+        <h3>CVS</h3>
+        <span class="cmd-type">String Function</span>
+        <div class="syntax">CVS(string, mode)</div>
+        <p>Converts/manipulates <code>string</code> based on bitwise <code>mode</code>:</p>
+        <ul>
+            <li><strong>1:</strong> Strip leading spaces (LTRIM)</li>
+            <li><strong>2:</strong> Strip trailing spaces (RTRIM)</li>
+            <li><strong>16:</strong> Convert to Uppercase</li>
+            <li><strong>32:</strong> Convert to Lowercase</li>
+        </ul>
+
+        <h2 id="d">D</h2>
+
+        <h3>DIM</h3>
+        <span class="cmd-type">Declaration Directive</span>
+        <div class="syntax">DIM var[size](len), ...</div>
+        <p>Reserves memory for arrays. Format <code>(len)</code> is optional for strings (dynamic).</p>
+
+        <h3>DIRECT</h3>
+        <span class="cmd-type">File Directive</span>
+        <div class="syntax">DIRECT "filename", key_len, rec_len, disk_num</div>
+        <p>Creates a new 'DIRECT' (Keyed) file on the specified disk.</p>
+
+        <h3>DTN</h3>
+        <span class="cmd-type">Date Function</span>
+        <div class="syntax">DTN(string [, mask])</div>
+        <p>Converts a date string to a Julian Day Number via `mask`.</p>
+
+        <h2 id="e">E</h2>
+
+        <h3>END</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">END</div>
+        <p>Terminates program execution immediately and closes files.</p>
+
+        <h3>ENDTRACE</h3>
+        <span class="cmd-type">Debug Directive</span>
+        <div class="syntax">ENDTRACE</div>
+        <p>Disables trace mode.</p>
+
+        <h3>ENTER</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">ENTER var1, var2...</div>
+        <p>Receives arguments in a program started by <code>CALL</code>.</p>
+
+        <h3>ERASE</h3>
+        <span class="cmd-type">File Directive</span>
+        <div class="syntax">ERASE "filename"</div>
+        <p>Physically deletes a file from disk.</p>
+
+        <h3>EXECUTE</h3>
+        <span class="cmd-type">Meta Directive</span>
+        <div class="syntax">EXECUTE string_expr [, OPT="LOCAL"]</div>
+        <p>Compiles and executes BASIC code contained in <code>string_expr</code> at runtime.</p>
+
+        <h3>EXIT</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">EXIT</div>
+        <p>Exits a <code>CALL</code>ed program. Writes back modified variables (via <code>ENTER</code>) to the caller.
+        </p>
+
+        <h3>EXP</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">EXP(num)</div>
+        <p>Returns <em>e</em> raised to the power of <code>num</code>.</p>
+
+        <h3>EXTRACT / EXTRACTRECORD</h3>
+        <span class="cmd-type">I/O Directive</span>
+        <div class="syntax">EXTRACT (chn, KEY=k, IND=i) vars...</div>
+        <p>Reads record data and locks the record.</p>
+        <ul>
+            <li><strong>Important:</strong> Does <strong>not</strong> advance the file pointer. A subsequent
+                <code>WRITE</code> updates the same record.</li>
+        </ul>
+
+        <h2 id="f">F</h2>
+
+        <h3>FOR</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">FOR var = start TO end [STEP step]</div>
+        <p>Starts a loop counter. Ends with <code>NEXT var</code>.</p>
+
+        <h3>FPT</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">FPT(num)</div>
+        <p>Returns the fractional part of <code>num</code>.</p>
+
+        <h2 id="g">G</h2>
+
+        <h3>GOSUB</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">GOSUB line</div>
+        <p>Jumps to subroutine at <code>line</code>. Returns with <code>RETURN</code>.</p>
+
+        <h3>GOTO</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">GOTO line</div>
+        <p>Unconditional jump.</p>
+
+        <h2 id="h">H</h2>
+
+        <h3>HTA</h3>
+        <span class="cmd-type">Conversion Function</span>
+        <div class="syntax">HTA(string)</div>
+        <p>(Hex to ASCII) Converts bytes in <code>string</code> to hex representation.</p>
+
+        <h2 id="i">I</h2>
+
+        <h3>IF</h3>
+        <span class="cmd-type">Flow Control Directive</span>
+        <div class="syntax">IF condition THEN line / statement</div>
+        <p>Executes action if condition is true. Operators: <code>=, <>, <, >, <=, >=</code>.</p>
+
+        <h3>INDEXED</h3>
+        <span class="cmd-type">File Directive</span>
+        <div class="syntax">INDEXED "filename", ...</div>
+        <p>Creates an INDEXED file (Key-Value store behavior).</p>
+
+        <h3>INPUT</h3>
+        <span class="cmd-type">I/O Directive</span>
+        <div class="syntax">INPUT [chn, opts] "Prompt: ", vars...</div>
+        <p>Requests user input or reads from terminal. Supports <code>IOL=</code> formatting.</p>
+
+        <h3>INT</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">INT(num)</div>
+        <p>Returns the floor of <code>num</code> (largest integer <= num).</p>
+
+                <h3>IOLIST</h3>
+                <span class="cmd-type">I/O Directive</span>
+                <div class="syntax">line IOLIST item [, item ...]</div>
+                <p>Defines a reusable template for I/O operations.</p>
+                <p><strong>Items:</strong></p>
+                <ul>
+                    <li><strong>Variables:</strong> <code>A$</code>, <code>B</code> (Read/Write values)</li>
+                    <li><strong>Mnemonics:</strong> <code>'CS'</code>, <code>'LF'</code> (Terminal only)</li>
+                    <li><strong>Cursor:</strong> <code>@(col, row)</code> (Terminal only)</li>
+                    <li><strong>Literals:</strong> <code>"Text"</code> (Output/Expect text)</li>
+                    <li><strong>Skip:</strong> <code>*</code> (Skip field on input)</li>
+                </ul>
+                <p><strong>Usage:</strong> <code>READ (1, IOL=100)</code></p>
+
+                <h3>IPT</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">IPT(num)</div>
+                <p>Returns the integer part (truncation) of <code>num</code>.</p>
+
+                <h2 id="k">K</h2>
+
+                <h3>KEY</h3>
+                <span class="cmd-type">I/O Function</span>
+                <div class="syntax">KEY(channel [, ERR=line])</div>
+                <p>Returns the key of the <strong>next</strong> record without reading it.</p>
+
+                <h2 id="l">L</h2>
+
+                <h3>LCS</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">LCS(string)</div>
+                <p>Converts string to Lowercase.</p>
+
+                <h3>LEN</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">LEN(string)</div>
+                <p>Returns string length.</p>
+
+                <h3>LET</h3>
+                <span class="cmd-type">Assignment Directive</span>
+                <div class="syntax">LET var = expr</div>
+                <p>Assigns value. Keyword <code>LET</code> is optional.</p>
+
+                <h3>LOG</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">LOG(num)</div>
+                <p>Natural logarithm.</p>
+
+                <h2 id="m">M</h2>
+
+                <h3>MAX / MIN</h3>
+                <span class="cmd-type">Function</span>
+                <div class="syntax">MAX(items...) / MIN(items...)</div>
+                <p>Returns largest/smallest value.</p>
+
+                <h3>MOD</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">MOD(num, div)</div>
+                <p>Returns remainder of division.</p>
+
+                <h2 id="n">N</h2>
+
+                <h3>NEXT</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">NEXT var</div>
+                <p>Ends a <code>FOR</code> loop.</p>
+
+                <h3>NOT</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">NOT(string)</div>
+                <p>Bitwise NOT on string bytes.</p>
+
+                <h3>NUM</h3>
+                <span class="cmd-type">Conversion Function</span>
+                <div class="syntax">NUM(str [, NTP, SIZ...])</div>
+                <p>Converts string to number with validation options.</p>
+
+                <h2 id="o">O</h2>
+
+                <h3>ON ... GOTO / GOSUB</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">ON val GOTO line1, line2...</div>
+                <p>Conditional jump based on integer index `val`.</p>
+
+                <h3>OPEN</h3>
+                <span class="cmd-type">I/O Directive</span>
+                <div class="syntax">OPEN (chn) "file" [, options]</div>
+                <p>Opens a file on channel `chn` (1-255). Channel 0 is terminal.</p>
+
+                <h3>OR</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">OR(str1, str2)</div>
+                <p>Bitwise OR.</p>
+
+                <h2 id="p">P</h2>
+
+                <h3>POS</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">POS(haystack, needle) / POS(relation)</div>
+                <p>Finds position of substring or condition match.</p>
+
+                <h3>PRINT</h3>
+                <span class="cmd-type">I/O Directive</span>
+                <div class="syntax">PRINT (chn) expr...</div>
+                <p>Outputs to channel. Support Mnemonics on terminal.</p>
+
+                <h2 id="r">R</h2>
+
+                <h3>READ</h3>
+                <span class="cmd-type">I/O Directive</span>
+                <div class="syntax">READ (chn [, KEY=k, IND=i]) vars...</div>
+                <p>Reads fields from a record.</p>
+                <ul>
+                    <li><strong>Sequential:</strong> Reads next record, advances pointer.</li>
+                    <li><strong>Keyed:</strong> Reads specific record.</li>
+                    <li><code>DOM=line</code>: Jump on Duplicate/Missing Key.</li>
+                    <li><code>END=line</code>: Jump on EOF.</li>
+                </ul>
+
+                <h3>REM</h3>
+                <span class="cmd-type">Comment</span>
+                <div class="syntax">REM text</div>
+                <p>Comment line. Ignored.</p>
+
+                <h3>REMOVE</h3>
+                <span class="cmd-type">File Directive</span>
+                <div class="syntax">REMOVE (chn [, KEY=k])</div>
+                <p>Deletes a record. If no KEY, deletes last accessed record.</p>
+
+                <h3>RETURN</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">RETURN</div>
+                <p>Returns from <code>GOSUB</code>.</p>
+
+                <h3>RND</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">RND([seed])</div>
+                <p>Returns random float 0.0-1.0.</p>
+
+                <h3>ROUND</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">ROUND(num, precision)</div>
+                <p>Rounds a number.</p>
+
+                <h2 id="s">S</h2>
+
+                <h3>SELECT</h3>
+                <span class="cmd-type">I/O Directive</span>
+                <div class="syntax">SELECT (chn) ...</div>
+                <p>Partial implementation of record filtering.</p>
+
+                <h3>SERIAL</h3>
+                <span class="cmd-type">File Directive</span>
+                <div class="syntax">SERIAL "name", ...</div>
+                <p>Creates a SERIAL (append-only/seq) file.</p>
+
+                <h3>SETTRACE</h3>
+                <span class="cmd-type">Debug Directive</span>
+                <div class="syntax">SETTRACE [(chn)]</div>
+                <p>Enables execution logging.</p>
+
+                <h3>SET TRACEMODE</h3>
+                <span class="cmd-type">Debug Directive</span>
+                <div class="syntax">SET TRACEMODE "mode"</div>
+                <p>Configures trace (FULL, PARTIAL, SKIPCALLS).</p>
+
+                <h3>SGN</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">SGN(num)</div>
+                <p>Returns sign (-1, 0, 1).</p>
+
+                <h3>SIN/COS/TAN</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">SIN(n)</div>
+                <p>Trig functions.</p>
+
+                <h3>SORT</h3>
+                <span class="cmd-type">File Directive</span>
+                <div class="syntax">SORT "name"...</div>
+                <p>Creates a SORT file.</p>
+
+                <h3>SQR</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">SQR(num)</div>
+                <p>Square root.</p>
+
+                <h3>STOP</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">STOP</div>
+                <p>Halts program.</p>
+
+                <h3>STR$</h3>
+                <span class="cmd-type">Conversion Function</span>
+                <div class="syntax">STR$(num)</div>
+                <p>Number to string conversion.</p>
+
+                <h2 id="u">U</h2>
+
+                <h3>UCS</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">UCS(string)</div>
+                <p>Converts to Uppercase.</p>
+
+                <h2 id="v">V</h2>
+
+                <h3>VAL</h3>
+                <span class="cmd-type">Conversion Function</span>
+                <div class="syntax">VAL(string)</div>
+                <p>String to number conversion.</p>
+
+                <h2 id="w">W</h2>
+
+                <h3>WRITE</h3>
+                <span class="cmd-type">I/O Directive</span>
+                <div class="syntax">WRITE (chn [, KEY=k]) vals...</div>
+                <p>Writes data to a record (Update or Insert).</p>
+
+                <h2 id="x">X</h2>
+
+                <h3>XOR</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">XOR(str1, str2)</div>
+                <p>Bitwise XOR.</p>
+
+                <h2 id="mnemonics">Terminal Mnemonics</h2>
+                <p>Supported mnemonics for <code>PRINT</code> statements:</p>
+
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Mnemonic</th>
+                            <th>Function</th>
+                            <th>Effect</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>'CS'</code></td>
+                            <td>Clear Screen</td>
+                            <td>Clears screen, moves cursor to top-left.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'BR'</code></td>
+                            <td>Begin Reverse</td>
+                            <td>Starts reverse video.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'ER'</code></td>
+                            <td>End Reverse</td>
+                            <td>Stops reverse video.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'BU'</code></td>
+                            <td>Begin Underline</td>
+                            <td>Starts underline.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'EU'</code></td>
+                            <td>End Underline</td>
+                            <td>Stops underline.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'VT'</code></td>
+                            <td>Vertical Tab</td>
+                            <td>Cursor Up.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'LF'</code></td>
+                            <td>Line Feed</td>
+                            <td>Cursor Down.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'BS'</code></td>
+                            <td>Backspace</td>
+                            <td>Cursor Left.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'CH'</code></td>
+                            <td>Cursor Home</td>
+                            <td>Moves cursor to top-left (no clear).</td>
+                        </tr>
+                        <tr>
+                            <td><code>'CE'</code></td>
+                            <td>Clear to EOS</td>
+                            <td>Clears to end of screen.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'CL'</code></td>
+                            <td>Clear to EOL</td>
+                            <td>Clears to end of line.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'LD'</code></td>
+                            <td>Line Delete</td>
+                            <td>Deletes current line.</td>
+                        </tr>
+                        <tr>
+                            <td><code>'@'(c,r)</code></td>
+                            <td>Cursor Pos</td>
+                            <td>Moves cursor to column c, row r.</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+    </main>
 </body>
+
 </html>
