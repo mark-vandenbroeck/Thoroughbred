@@ -188,7 +188,8 @@
 
         <h2 id="config">Configuration and Disks</h2>
         <p>The interpreter uses a <strong>'Disk' system</strong> for file management, allowing logical disk names (like
-            <code>D0</code>, <code>D1</code>) to map to physical directories on the host system.</p>
+            <code>D0</code>, <code>D1</code>) to map to physical directories on the host system.
+        </p>
 
         <h3>IPLINPUT</h3>
         <p>On startup, the interpreter reads the configuration file <code>IPLINPUT</code> from the current working
@@ -200,7 +201,8 @@
         <pre><code>D0 = ./data/primary
 D1 = ./data/backup</code></pre>
         <p>For file operations (like <code>OPEN</code>), the system searches in the order: <code>D0</code>,
-            <code>D1</code>, etc., unless a specific path or disk number is provided.</p>
+            <code>D1</code>, etc., unless a specific path or disk number is provided.
+        </p>
 
         <h3>Creating Files</h3>
         <p>Commands like <code>DIRECT</code>, <code>INDEXED</code>, <code>SERIAL</code>, and <code>SORT</code> accept a
@@ -332,7 +334,8 @@ D1 = ./data/backup</code></pre>
         <p>Reads record data and locks the record.</p>
         <ul>
             <li><strong>Important:</strong> Does <strong>not</strong> advance the file pointer. A subsequent
-                <code>WRITE</code> updates the same record.</li>
+                <code>WRITE</code> updates the same record.
+            </li>
         </ul>
 
         <h2 id="f">F</h2>
@@ -543,6 +546,17 @@ D1 = ./data/backup</code></pre>
                 <span class="cmd-type">File Directive</span>
                 <div class="syntax">SERIAL "name", ...</div>
                 <p>Creates a SERIAL (append-only/seq) file.</p>
+
+                <h3>SETERR</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">SETERR line | OFF | ON</div>
+                <p>Defines a global error-handler routine.</p>
+                <ul>
+                    <li>Transfers control to <code>line</code> if a runtime error occurs (and is not handled locally by
+                        <code>ERR=</code>).</li>
+                    <li><code>SETERR OFF</code> disables the handler.</li>
+                    <li>Error handler is automatically disabled upon entry.</li>
+                </ul>
 
                 <h3>SETTRACE</h3>
                 <span class="cmd-type">Debug Directive</span>

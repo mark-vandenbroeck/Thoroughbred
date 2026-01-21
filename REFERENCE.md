@@ -449,6 +449,14 @@ Gerefereerd via `IOL=line` optie in I/O statement.
 **Syntax:** `SERIAL "filename", rec_len, disk_num`  
 **Beschrijving:** Creëert een serieel bestand (alleen toevoegen/lezen).
 
+### SETERR
+**Type:** Flow Control Directive  
+**Syntax:** `SETERR line | OFF | ON`  
+**Beschrijving:** Definieert een globale error-handler routine.
+- Als er een fout optreedt (en geen `ERR=` aanwezig is), springt de interpreter naar `line`.
+- `SETERR` wordt automatisch op 0 (uit) gezet bij het binnengaan van de handler.
+- Gebruik `RETRY` (nog niet geïmplementeerd) om terug te keren.
+
 ### SETTRACE
 **Type:** Debug Directive  
 **Syntax:** `SETTRACE [(chn)]`  

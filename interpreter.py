@@ -31,6 +31,13 @@ class ThoroughbredBasicInterpreter:
         self.trace_options = set()
         self.trace_delay = 0
 
+        # Error Handling State (SETERR)
+        self.seterr_line = 0
+        self.seterr_active = False
+        self.seterr_saved = 0
+        self.last_error_line = None # For RETRY (not fully implemented yet but needed for SETERR state)
+
+
     def _push_context(self, program, line_numbers, variables=None, passed_args=None):
         self.context_stack.append({
             'program': program,
@@ -565,11 +572,8 @@ class ThoroughbredBasicInterpreter:
                              # Trigger Jump!
                              raise BasicErrorJump(err_line)
                         else:
-                             # ERR=26 logic (Invalid String)
-                             # For now return 0 but log error? Or raise?
-                             # Standard BASIC halts on error unless ERR= provided.
-                             print(f"NUM Conversion Error: {e}")
-                             return 0 # Or Exception?
+                             # Raise exception so global SETERR or default handler acts
+                             raise e
                              
 
 
@@ -709,6 +713,32 @@ class ThoroughbredBasicInterpreter:
             except: pass
         return False
 
+    def _handle_runtime_error(self, e):
+        """
+        Handles runtime errors via SETERR mechanism.
+        Returns True if error was handled (branched), False otherwise.
+        """
+        if self.seterr_active and self.seterr_line > 0:
+            target = self.seterr_line
+            
+            # Save state (RETRY mechanism would use this)
+            self.seterr_saved = self.seterr_line
+            
+            # TODO: Save current line number/index for RETRY
+            
+            # Disable SETERR (SETERR 0)
+            self.seterr_line = 0
+            
+            # Find target index
+            if target in self.line_numbers:
+                self.current_line_idx = self.line_numbers.index(target)
+                return True
+            else:
+                # Fallback if SETERR target doesn't exist?
+                print(f"Error: SETERR target line {target} not found.")
+                return False
+        return False
+
     def execute(self):
         while self.context_stack:
             try:
@@ -769,12 +799,18 @@ class ThoroughbredBasicInterpreter:
                     print(f"Runtime Error: Jump target {jump.target} not found")
                     break
             except Exception as e:
-                # Global error handling
-                if self.context_stack and self.line_numbers and self.current_line_idx < len(self.line_numbers):
-                    ln = self.line_numbers[self.current_line_idx]
-                    print(f"Runtime Error at line {ln}: {e}")
-                else:
-                    print(f"Runtime Error: {e}")
+                # 1. Try SETERR
+                if self._handle_runtime_error(e):
+                    continue
+                
+                # 2. Default Error Reporting
+                line_str = "?"
+                try:
+                    if self.context_stack and self.line_numbers and self.current_line_idx < len(self.line_numbers):
+                         line_str = str(self.line_numbers[self.current_line_idx])
+                except: pass
+                print(f"Runtime Error at line {line_str}: {e}")
+                break
                 break
 
     def _handle_assignment(self, tokens, var_offset):
@@ -1732,6 +1768,31 @@ class ThoroughbredBasicInterpreter:
 
             self.current_line_idx += 1
 
+
+        elif cmd == 'SETERR':
+            if len(tokens) > 1:
+                t1 = tokens[1]
+                val_up = str(t1.value).upper()
+                
+                if t1.type == 'OFF' or val_up == 'OFF':
+                    self.seterr_active = False
+                elif t1.type == 'ON' or val_up == 'ON':
+                    self.seterr_active = True
+                else:
+                    # Evaluate target (supports expressions like SETERR 1000 or SETERR Dest)
+                    try:
+                        val = self.evaluate_expression(tokens[1:])
+                        line_num = int(float(val))
+                        if line_num == 0:
+                            self.seterr_line = 0
+                            self.seterr_active = False
+                        else:
+                            self.seterr_line = line_num
+                            self.seterr_active = True
+                    except Exception as e:
+                        print(f"SETERR Error: {e}")
+                        
+            self.current_line_idx += 1
 
         elif cmd == 'SETTRACE':
             chn = 0
