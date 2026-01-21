@@ -282,6 +282,17 @@ Vraagt invoer van de gebruiker.
 Geeft het grootste gehele getal kleiner dan of gelijk aan `num` (floor).
 - `INT(3.9)` -> `3`
 
+### IOLIST
+**Syntax:** `line IOLIST item [, item ...]`  
+Definieert een lijst van variabelen en formatters voor I/O statements.
+**Items:**
+- Variabelen (bijv. `A$`, `B`)
+- Mnemonics (bijv. `'CS'`)
+- Cursor positie `@(c,r)`
+- Literals en Skip (`*`)
+**Gebruik:** `READ (1, IOL=100)`, `WRITE (1, IOL=100)`
+- `100 IOLIST A$, B, "Label", *`
+
 ### IPT
 **Syntax:** `IPT(num)`  
 Geeft het gehele deel van een getal (truncation).
@@ -613,37 +624,3 @@ De interpreter ondersteunt de volgende mnemonics in `PRINT` statements (bijv. `P
 | `'LD'` | Line Delete | Verwijdert huidige regel. |
 | `'@' (c, r)` | Cursor Position | Zet cursor op kolom `c`, rij `r`. |
 
----
-
-## IOLIST Directive
-
-Defines a reusable list of variables and format specifiers for use in Input/Output statements throughout the program.
-
-**Syntax:**
-
-`line-number IOLIST item [, item ...]`
-
-**Items can be:**
-*   `variable`: A string or numeric variable to be read/written.
-*   `mnemonic`: A control mnemonic (e.g., `'CS'`).
-*   `@(col, row)`: Cursor positioning information.
-*   `literal`: A string literal or numeric constant.
-*   `*`: A standard skip character to skip a field during input.
-
-**Usage:**
-
-An `IOLIST` serves as a template. It is referenced in `READ`, `WRITE`, `PRINT`, or `INPUT` statements using the `IOL=line-ref` option.
-
-**Example:**
-
-```basic
-100 IOLIST A$, B, C
-...
-200 READ (1, IOL=100)
-300 PRINT (0, IOL=100)
-```
-
-**Remarks:**
-
-*   In file I/O operations (`READ`/`WRITE`), `IOLIST` defines the variables to be read from or written to the record. Mnemonics and cursor positioning are generally ignored for file I/O.
-*   In terminal I/O (`PRINT`/`INPUT`), all items including mnemonics and cursor positioning are processed.
