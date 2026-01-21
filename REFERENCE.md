@@ -25,6 +25,31 @@ Bij commando's zoals `DIRECT`, `INDEXED`, `SERIAL` en `SORT` kan een disk-nummer
 
 ---
 
+## Bestandsformaten
+
+De interpreter werkt met vier specifieke bestandstypes:
+
+### DIRECT (Keyed File)
+Bestanden met vaste recordlengte, toegankelijk via een unieke sleutel (string).
+- Geoptimaliseerd voor willekeurige toegang (Random Access).
+- **Aanmaken:** `DIRECT "naam", key_len, rec_len, disk`
+
+### SORT (Sort File)
+Bevat alleen sleutels (tot 128 bytes). Wordt gebruikt voor het sorteren van data of als indexbestand.
+- **Aanmaken:** `SORT "naam", key_len, folder_len, disk`
+
+### INDEXED
+Een Key-Value opslagmechanisme. Vergelijkbaar met DIRECT maar flexibeler in sommige implementaties.
+- **Aanmaken:** `INDEXED "naam", 10, 0, disk`
+
+### SERIAL
+Sequentiële bestanden. Records worden achter elkaar geschreven.
+- Gebruik voor logs of data die sequentieel verwerkt wordt.
+- Toegang via 'Random Access' (`READ (chn, IND=i)`) is mogelijk maar minder efficiënt.
+- **Aanmaken:** `SERIAL "naam", rec_len, disk`
+
+---
+
 ## A
 
 ## A

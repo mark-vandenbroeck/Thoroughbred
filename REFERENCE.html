@@ -156,6 +156,7 @@
         <h3>Contents</h3>
         <ul>
             <li><a href="#config">Configuration</a></li>
+            <li><a href="#filetypes">File Formats</a></li>
             <li><a href="#a">A</a></li>
             <li><a href="#c">C</a></li>
             <li><a href="#d">D</a></li>
@@ -205,8 +206,36 @@ D1 = ./data/backup</code></pre>
         </p>
 
         <h3>Creating Files</h3>
-        <p>Commands like <code>DIRECT</code>, <code>INDEXED</code>, <code>SERIAL</code>, and <code>SORT</code> accept a
-            disk number to specify where the file should be created.</p>
+        disk number to specify where the file should be created.</p>
+
+        <h2 id="filetypes">File Formats</h2>
+        <p>The interpreter supports four specific file types:</p>
+
+        <h3>DIRECT (Keyed File)</h3>
+        <p>Fixed-record-length files accessed via a unique string key.</p>
+        <ul>
+            <li>Optimized for Random Access.</li>
+            <li><strong>Create:</strong> <code>DIRECT "name", key_len, rec_len, disk</code></li>
+        </ul>
+
+        <h3>SORT (Sort File)</h3>
+        <p>Contains only keys (up to 128 bytes). Used for sorting or indexing.</p>
+        <ul>
+            <li><strong>Create:</strong> <code>SORT "name", key_len, folder_len, disk</code></li>
+        </ul>
+
+        <h3>INDEXED</h3>
+        <p>Key-Value storage mechanism.</p>
+        <ul>
+            <li><strong>Create:</strong> <code>INDEXED "name", 10, 0, disk</code></li>
+        </ul>
+
+        <h3>SERIAL</h3>
+        <p>Sequential files. Records are written chronologically.</p>
+        <ul>
+            <li>Use for logs or sequential data.</li>
+            <li><strong>Create:</strong> <code>SERIAL "name", rec_len, disk</code></li>
+        </ul>
 
         <h2 id="a">A</h2>
 
