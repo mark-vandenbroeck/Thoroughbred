@@ -316,6 +316,17 @@ Geeft de natuurlijke logaritme van een getal.
 
 ## M
 
+### MAX
+**Syntax:** `MAX(item1, item2, ...)`  
+Geeft de grootste waarde uit een lijst van getallen of strings.
+- `MAX(1, 5, 2)` -> `5`
+- `MAX("A", "C", "B")` -> `"C"`
+
+### MIN
+**Syntax:** `MIN(item1, item2, ...)`  
+Geeft de kleinste waarde uit een lijst van getallen of strings.
+- `MIN(1, 5, 2)` -> `1`
+
 ### MOD
 **Syntax:** `MOD(num, div)`  
 Geeft de restwaarde van een deling (modulo).
@@ -334,9 +345,28 @@ Sluit een `FOR` lus af en verhoogt de teller.
 Voert een bitwise NOT (inversie) uit op de karakters (0-255).
 - `NOT(CHR$(0))` -> `CHR$(255)`
 
+### NUM
+**Syntax:** `NUM(string [, NTP=type, SIZ=round, ERR=line, ERC=code])`  
+Converteert een string naar een getal met uitgebreide opties.
+**Parameters:**
+- `NTP`: Conversietype (0=Decimal, default).
+- `SIZ`: Afrondingsprecisie (bijv. `0.01` rondt af op 2 decimalen).
+- `ERR`: Spring naar regelnummer bij fout.
+- `ERC`: Sla foutcode op in code-variabele.
+- `NUM("123.45")` -> `123.45`
+
 ---
 
 ## O
+
+### ON ... GOTO / GOSUB
+**Syntax:** `ON val GOTO/GOSUB line1, line2...`  
+Conditionele sprong gebaseerd op een integer waarde.
+- Waarde <= 0: Eerste regel.
+- Waarde 1: Tweede regel.
+- ...
+- Waarde >= n: Laatste regel.
+- `ON X GOTO 100, 200, 300`
 
 ### OPEN
 **Syntax:** `OPEN (chn) "filename" [, DIRECT|INDEXED|SERIAL]`  

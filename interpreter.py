@@ -11,6 +11,8 @@ from file_manager import FileManager
 from lexer import Lexer, Token
 
 class ExecutionFinished(Exception): pass
+class BasicErrorJump(Exception):
+    def __init__(self, target): self.target = target
 
 class ThoroughbredBasicInterpreter:
     def __init__(self, io_handler=None):
@@ -210,9 +212,8 @@ class ThoroughbredBasicInterpreter:
         builtins = {'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
                     'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
                     'MOD', 'ROUND', 'FPT', 'IPT',
-                    'MOD', 'ROUND', 'FPT', 'IPT',
                     'AND', 'OR', 'NOT', 'XOR', 'DTN',
-                    'ATH', 'HTA'}
+                    'ATH', 'HTA', 'MAX', 'MIN', 'NUM'}
         
         if tokens[0].type in builtins and len(tokens) > 2 and tokens[1].type == 'LPAREN':
             close_idx = find_matching(1, 'LPAREN', 'RPAREN')
@@ -324,6 +325,137 @@ class ThoroughbredBasicInterpreter:
                     # Hex to ASCII (returns hex string of input bytes)
                     s = str(val1)
                     return s.encode('latin1').hex().upper()
+                elif func in ('MAX', 'MIN'):
+                    # MAX(v1, v2, ...) / MIN(v1, v2, ...)
+                    values = []
+                    # Evaluate all arguments
+                    for i in range(len(args)):
+                        v = eval_arg(i)
+                        if v is not None:
+                            values.append(v)
+                    
+                    if not values:
+                        return 0
+                        
+                    # Check for mixed types (str vs numbers) -> convert all to float? Or str?
+                    # Python max() fails on mixed types.
+                    # Basic usually promotes/converts.
+                    # If any is string, treat all as strings?
+                    has_str = any(isinstance(x, str) for x in values)
+                    if has_str:
+                        values = [str(x) for x in values]
+                    else:
+                        # All numbers?
+                        # Ensure all are numbers (int/float)
+                        pass 
+                        
+                    return max(values) if func == 'MAX' else min(values)
+                elif func == 'NUM':
+                    # NUM(string-value [,ERR=line-ref|,ERC=error-code])
+                    # NUM(string-value, NTP=numeric-type [,SIZ=precision] [,ERR=line-ref|,ERC=error-code])
+                    
+                    # Parse args similar to POS but more flexible for kwargs
+                    # 1. First arg is string value
+                    str_val = str(eval_arg(0))
+                    
+                    # 2. Parse remaining args
+                    ntp = 0
+                    siz = None
+                    err_line = None
+                    erc_code = 0
+                    
+                    # Check subsequent args for Assignments (NTP=, SIZ=, ERR=, ERC=)
+                    # We need to peek at the tokens of remaining args passed in 'args' list
+                    # args[1], args[2] etc are list of tokens.
+                    # We need to detect "KEY = VAL" pattern in them.
+                    
+                    # Wait, eval_arg evaluates the expression. 
+                    # If arg is "NTP=6", that is NOT a standard expression if NTP is a keyword.
+                    # The Lexer tokenizes "NTP=6" as [NTP, ASSIGN, NUMBER].
+                    # eval_arg calls evaluate_expression which normally evaluates this as an assignment? 
+                    # No, evaluate_expression expects expressions. "NTP=6" in an expression:
+                    # If NTP is variable, it compares NTP = 6 (return 0 or 1).
+                    # But here we want named parameters.
+                    
+                    # We need to inspect the RAW tokens of the arguments, not just evaluate them blindly.
+                    # 'args' variable contains lists of tokens for each argument.
+                    
+                    for i in range(1, len(args)):
+                        arg_tokens = args[i]
+                        # Check format: KEY (=) VAL
+                        if len(arg_tokens) >= 3 and arg_tokens[1].type == 'ASSIGN' and arg_tokens[1].value == '=':
+                            key = arg_tokens[0].type
+                            val_tokens = arg_tokens[2:]
+                            val = self.evaluate_expression(val_tokens)
+                            
+                            if key == 'NTP': ntp = int(val)
+                            elif key == 'SIZ': siz = float(val) # SIZ is .01 to .15
+                            elif key == 'ERR': err_line = int(val)
+                            elif key == 'ERC': erc_code = int(val)
+                            # print(f"DEBUG NUM: key={key} val={val} siz={siz}")
+                        else:
+                            # Positional? NUM only has one positional arg usually.
+                            pass
+                            
+                    # Perform Conversion
+                    try:
+                        # NTP=0: Fixed point positive/negative (Standard)
+                        # Valid: 0-9, leading +, leading -, max one decimal, E, spaces.
+                        # Spaces must be stripped? "12 34" -> 1234
+                        # "12-", "-", "12.31.88" -> error
+                        
+                        if ntp == 0:
+                            clean_s = str_val.replace(" ", "")
+                            if not re.match(r'^[+-]?\d*(\.\d*)?([eE][+-]?\d+)?$', clean_s):
+                                raise ValueError("Invalid numeric format")
+                            if clean_s in ('', '+', '-'): raise ValueError("Empty numeric string")
+                            result = float(clean_s)
+                            
+                        elif ntp in (1, 2):
+                             # 1: Fix pos, 2: Fix neg. Checks needed?
+                             clean_s = str_val.replace(" ", "")
+                             res = float(clean_s)
+                             if ntp == 1 and res < 0: raise ValueError("Positive required")
+                             if ntp == 2 and res > 0: raise ValueError("Negative required")
+                             result = res
+                             
+                        # Placeholder for binary types
+                        elif ntp >= 3:
+                             # For now, just simplistic parsing or return 0
+                             # In future: implement binary decoding logic
+                             # Example: $02182E$, NTP=6 -> 12345 (Packed Decimal?)
+                             # For now, just strip $ and parse hex? No, packed decimal is specific.
+                             pass
+                             # Try basic float fallback
+                             result = float(str_val.replace("$", ""))
+                             
+                        else:
+                            result = float(str_val)
+
+                        # Apply SIZ (rounding)
+                        if siz is not None:
+                             # SIZ=.01 (0 digits), .02 (1 digit)... .15 (14 digits)
+                             # Docs says "precision of 0 through 14".
+                             # Mapping: .01 -> 0, .02 -> 1, ...
+                             prec = int((siz * 100) - 1)
+                             if prec >= 0:
+                                 result = round(result, prec)
+
+                        return result
+
+                    except Exception as e:
+                        # Error handling
+                        if err_line is not None:
+                             # Trigger Jump!
+                             raise BasicErrorJump(err_line)
+                        else:
+                             # ERR=26 logic (Invalid String)
+                             # For now return 0 but log error? Or raise?
+                             # Standard BASIC halts on error unless ERR= provided.
+                             print(f"NUM Conversion Error: {e}")
+                             return 0 # Or Exception?
+                             
+
 
 
         # 2. Handle single values / atoms (Base case)
@@ -513,6 +645,13 @@ class ThoroughbredBasicInterpreter:
                 
             except ExecutionFinished:
                 break
+            except BasicErrorJump as jump:
+                # Handle ERR= jump
+                if jump.target in self.line_numbers:
+                    self.current_line_idx = self.line_numbers.index(jump.target)
+                else:
+                    print(f"Runtime Error: Jump target {jump.target} not found")
+                    break
             except Exception as e:
                 # Global error handling
                 if self.context_stack and self.line_numbers and self.current_line_idx < len(self.line_numbers):
@@ -755,6 +894,52 @@ class ThoroughbredBasicInterpreter:
 
         elif cmd == 'LET':
             self._handle_assignment(tokens, 1)
+
+        elif cmd == 'ON':
+            # ON numeric-value GOTO/GOSUB line-ref0 [, line-ref1 ...]
+            branch_idx = -1
+            branch_type = None
+            for i, t in enumerate(tokens):
+                if t.type in ('GOTO', 'GOSUB'):
+                    branch_idx = i
+                    branch_type = t.type
+                    break
+            
+            if branch_idx == -1:
+                raise RuntimeError("Syntax error: ON without GOTO or GOSUB")
+
+            expr_tokens = tokens[1:branch_idx]
+            val = int(self.evaluate_expression(expr_tokens))
+            
+            targets = []
+            idx = branch_idx + 1
+            current_target = []
+            
+            while idx < len(tokens):
+                t = tokens[idx]
+                if t.type == 'COMMA':
+                   if current_target:
+                       targets.append(int(float(current_target[0].value))) 
+                   current_target = []
+                else:
+                   current_target.append(t)
+                idx += 1
+            if current_target:
+                targets.append(int(float(current_target[0].value)))
+
+            target_idx = val
+            if target_idx < 0: target_idx = 0
+            if target_idx >= len(targets): target_idx = len(targets) - 1
+            
+            target_line = targets[target_idx]
+            
+            if target_line in self.line_numbers:
+                if branch_type == 'GOSUB':
+                    self.stack.append(self.current_line_idx + 1)
+                
+                self.current_line_idx = self.line_numbers.index(target_line)
+            else:
+                 raise RuntimeError(f"Undefined line number {target_line}")
 
         elif cmd in ('ID_NUM', 'ID_STR'):
             self._handle_assignment(tokens, 0)

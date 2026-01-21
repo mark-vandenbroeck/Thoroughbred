@@ -13,7 +13,7 @@ class Lexer:
     def __init__(self):
         # Token specification
         self.token_specification = [
-            ('NUMBER',   r'\d+(\.\d*)?'),  # Integer or decimal number
+            ('NUMBER',   r'(?:\d+(?:\.\d*)?|\.\d+)'),  # Integer or decimal number
             ('STRING',   r'"[^"]*"'),      # String literal
             ('MNEMONIC', r"'[A-Z0-9]+'"),  # Thoroughbred Mnemonics (e.g. 'CS')
             ('ID_STR',   r'[A-Z][A-Z0-9]*\$'), # String variable
@@ -44,7 +44,9 @@ class Lexer:
             'MOD', 'ROUND', 'FPT', 'IPT', 'EXECUTE', 'REMOVE',
             'AND', 'OR', 'NOT', 'XOR',
             'SETTRACE', 'ENDTRACE', 'SET', 'TRACEMODE', 'STOP', 'DTN',
-            'ATH', 'HTA'
+            'ATH', 'HTA', 'MAX', 'MIN',
+            'ATH', 'HTA', 'MAX', 'MIN',
+            'NUM', 'NTP', 'SIZ', 'ERC', 'ON'
         }
 
     def tokenize(self, text):
