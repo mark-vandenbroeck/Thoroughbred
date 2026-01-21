@@ -213,7 +213,52 @@ class ThoroughbredBasicInterpreter:
                     'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
                     'MOD', 'ROUND', 'FPT', 'IPT',
                     'AND', 'OR', 'NOT', 'XOR', 'DTN',
-                    'ATH', 'HTA', 'MAX', 'MIN', 'NUM'}
+                    'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY'}
+
+        # KEY function logic
+        if tokens[0].type == 'KEY' and len(tokens) > 2 and tokens[1].type == 'LPAREN':
+            close_idx = find_matching(1, 'LPAREN', 'RPAREN')
+            if close_idx != -1:
+                inner = tokens[2:close_idx]
+                args = []
+                current = []
+                d = 0
+                for t in inner:
+                    if t.type in ('LPAREN', 'LBRACKET'): d+=1
+                    elif t.type in ('RPAREN', 'RBRACKET'): d-=1
+                    if d==0 and t.type == 'COMMA':
+                        args.append(current)
+                        current = []
+                    else:
+                        current.append(t)
+                if current: args.append(current)
+
+                if len(args) == 0: raise RuntimeError("KEY() requires channel")
+                
+                chn = int(self.evaluate_expression(args[0]))
+                
+                options = {}
+                for arg_toks in args[1:]:
+                    if len(arg_toks) >= 3 and arg_toks[1].type == 'ASSIGN':
+                         kw = arg_toks[0].value
+                         val_expr = arg_toks[2:]
+                         val = self.evaluate_expression(val_expr)
+                         options[kw] = val
+                
+                err_line = int(options.get('ERR')) if 'ERR' in options else None
+                end_line = int(options.get('END')) if 'END' in options else None
+
+                try:
+                    return self.file_manager.get_next_key(chn)
+                except EOFError:
+                    if end_line: raise BasicErrorJump(end_line)
+                    if err_line: raise BasicErrorJump(err_line)
+                    raise RuntimeError("End of file (ERR=2)")
+                except Exception as e:
+                    msg = str(e)
+                    code = 13 if "Channel" in msg or "Invalid" in msg else 0
+                    if err_line: raise BasicErrorJump(err_line)
+                    raise RuntimeError(f"{msg} (ERR={code})")
         
         if tokens[0].type in builtins and len(tokens) > 2 and tokens[1].type == 'LPAREN':
             close_idx = find_matching(1, 'LPAREN', 'RPAREN')

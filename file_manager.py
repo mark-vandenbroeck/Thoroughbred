@@ -104,8 +104,8 @@ class FileManager:
         self.channels[channel] = {
             'type': metadata['type'],
             'filename': filename,
+            'path': path, # Store the actual path
             'data': records,
-            'metadata': metadata,
             'metadata': metadata,
             'pos': 0,
             'last_key': None # Track last accessed key for REMOVE without KEY
@@ -114,7 +114,7 @@ class FileManager:
     def close(self, channel):
         if channel in self.channels:
             chan = self.channels[channel]
-            path = self._get_path(chan['filename'])
+            path = chan.get('path') or self._get_path(chan['filename'])
             file_content = {
                 "_metadata": chan['metadata'],
                 "records": chan['data']
@@ -129,7 +129,7 @@ class FileManager:
         
         chan = self.channels[channel]
         data = chan['data']
-        print(f"DEBUG: WRITE ch={channel} key={key} ind={ind}")
+        # print(f"DEBUG: WRITE ch={channel} key={key} ind={ind}")
         
         if chan['type'] == 'INDEXED' and ind is not None:
             data[str(ind)] = values
@@ -193,3 +193,49 @@ class FileManager:
         path = self._get_path(filename, search=True)
         if os.path.exists(path):
             os.remove(path)
+
+    def get_next_key(self, channel):
+        if channel not in self.channels:
+            raise RuntimeError(f"Channel {channel} not open") # Interpreted as ERR=13 usually
+
+        chan = self.channels[channel]
+        # Only valid for DIRECT / SORT / INDEXED? Docs say DIRECT or SORT.
+        if chan['type'] not in ('DIRECT', 'SORT', 'INDEXED'):
+            raise RuntimeError("Invalid file type for KEY function") 
+
+        data = chan['data']
+        if not data:
+            raise EOFError("File is empty") # ERR=2
+
+        keys = sorted(data.keys())
+        
+        last_key = chan.get('last_key')
+        
+        if last_key is None:
+            # If no record accessed yet, return first key?
+            return keys[0]
+        
+        # Binary search or simple index lookup
+        try:
+             # Find current position
+            if last_key in keys:
+                idx = keys.index(last_key)
+                if idx + 1 < len(keys):
+                    return keys[idx + 1]
+                else:
+                    raise EOFError("End of file")
+            else:
+                # Last key might have been deleted or we jumped to a key that doesn't exist?
+                # If last_key not in keys (e.g. random READ with non-existent key?), 
+                # we should probably look for the next key *after* the value of last_key
+                # even if last_key itself isn't there.
+                # Let's fallback to finding insertion point.
+                import bisect
+                idx = bisect.bisect_right(keys, last_key)
+                if idx < len(keys):
+                    return keys[idx]
+                else:
+                    raise EOFError("End of file")
+                    
+        except ValueError:
+            raise EOFError("End of file")

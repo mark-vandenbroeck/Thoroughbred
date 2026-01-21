@@ -292,6 +292,12 @@ Geeft het gehele deel van een getal (truncation).
 
 ## L
 
+### KEY
+**Syntax:** `KEY(channel [, ERR=line, END=line])`  
+Geeft de sleutel van het *volgende* record in een DIRECT of SORT bestand.
+- `KEY(1)` -> Geeft volgende sleutel.
+- `KEY(1, ERR=100)` -> Springt naar 100 bij fout (bijv. EOF).
+
 ### LCS
 **Syntax:** `LCS(string)`  
 Converteert een string naar kleine letters (LowerCase).
