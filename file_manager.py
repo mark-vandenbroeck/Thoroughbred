@@ -144,7 +144,7 @@ class FileManager:
         else:
             raise RuntimeError(f"Invalid write operation on {chan['type']} file")
 
-    def read(self, channel, key=None, ind=None, advance_pointer=True):
+    def read(self, channel, key=None, ind=None, advance_pointer=True, update_ptr_on_error=True):
         if channel not in self.channels:
             raise RuntimeError(f"Channel {channel} not open")
         
@@ -152,11 +152,23 @@ class FileManager:
         data = chan['data']
         
         if chan['type'] == 'INDEXED' and ind is not None:
-            chan['last_key'] = str(ind)
-            return data.get(str(ind))
+            s_key = str(ind)
+            if s_key in data:
+                chan['last_key'] = s_key
+                return data.get(s_key)
+            else:
+                if update_ptr_on_error: chan['last_key'] = s_key
+                return None
+                
         elif chan['type'] in ('DIRECT', 'SORT') and key is not None:
-            chan['last_key'] = str(key)
-            return data.get(str(key))
+            s_key = str(key)
+            if s_key in data:
+                chan['last_key'] = s_key
+                return data.get(s_key)
+            else:
+                if update_ptr_on_error: chan['last_key'] = s_key
+                return None
+                
         elif chan['type'] == 'SERIAL':
             val = data.get(str(chan['pos']))
             chan['last_key'] = str(chan['pos'])

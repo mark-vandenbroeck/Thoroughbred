@@ -1302,7 +1302,7 @@ class ThoroughbredBasicInterpreter:
                 del self.for_loops[var_name]
                 self.current_line_idx += 1
 
-        elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'SELECT', 'REMOVE'):
+        elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'SELECT', 'REMOVE', 'FIND', 'FINDRECORD', 'READRECORD'):
             # Shared parsing for file commands
             options = {}
             idx = 0
@@ -1342,10 +1342,15 @@ class ThoroughbredBasicInterpreter:
                 except Exception as e:
                     if not self._handle_file_error('ERR', options): raise e
 
-            elif cmd in ('OPEN', 'READ', 'WRITE', 'CLOSE', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'REMOVE', 'INPUT'):
-                # 1. Parse Channel (if present)
-                channel = 0
+            elif cmd in ('OPEN', 'READ', 'WRITE', 'CLOSE', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'REMOVE', 'INPUT', 'FINDRECORD', 'READRECORD'):
+                # 1. Parse RECORD variation
                 idx = 1
+                if cmd in ('READ', 'FIND', 'EXTRACT') and idx < len(tokens) and tokens[idx].type == 'RECORD':
+                    cmd = cmd + 'RECORD'
+                    idx += 1
+
+                # 2. Parse Channel (if present)
+                channel = 0
                 if idx < len(tokens) and tokens[idx].type == 'LPAREN':
                     channel = int(tokens[idx+1].value)
                     idx += 3
@@ -1425,7 +1430,7 @@ class ThoroughbredBasicInterpreter:
                         # For READ with var_name, we don't eval yet? 
                         # Actually we do NOT eval for READ.
                         val = None
-                        if cmd not in ('READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'INPUT') or var_name is None:
+                        if cmd not in ('READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'INPUT', 'READRECORD', 'FINDRECORD') or var_name is None:
                              # Try to eval
                              try: val = self.evaluate_expression(toks)
                              except: pass 
@@ -1472,7 +1477,7 @@ class ThoroughbredBasicInterpreter:
                     elif cmd == 'REMOVE':
                          self.file_manager.remove(channel, key=options.get('KEY'))
                     
-                    elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND'):
+                    elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'READRECORD', 'FINDRECORD'):
                         key = options.get('KEY')
                         ind = options.get('IND')
                         
@@ -1494,13 +1499,29 @@ class ThoroughbredBasicInterpreter:
                              if not jumped:
                                  self.file_manager.write(channel, key=key, ind=ind, values=values)
                         
-                        elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD'):
-                             # READ
+                        elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'READRECORD', 'FINDRECORD'):
+                             # READ / FIND / RECORD
+                             update_ptr = True
+                             if cmd in ('FIND', 'FINDRECORD'): update_ptr = False
+
                              if cmd in ('EXTRACT', 'EXTRACTRECORD'):
                                  # Locking logic? Not implemented.
                                  val = self.file_manager.extract(channel, key=key, ind=ind)
                              else:
-                                 val = self.file_manager.read(channel, key=key, ind=ind)
+                                 val = self.file_manager.read(channel, key=key, ind=ind, update_ptr_on_error=update_ptr)
+
+                             # Special case: FIND on SORT file does not transfer data
+                             if cmd in ('FIND', 'FINDRECORD'):
+                                 try:
+                                     if self.file_manager.channels[channel]['type'] == 'SORT':
+                                         # Logic: behave as if no variables were passed? Or just don't assign?
+                                         # The loop below iterates 'args'. We can empty 'val' or flag to skip assignment.
+                                         # But we still need to check for errors (val is None).
+                                         if val is not None: val = [] # Clear data so no assignment happens?
+                                         # If val is [] (empty list/string), len(val) is 0. var_idx will stay 0.
+                                         # Loop will run but "if var_idx < len(val)" will be false.
+                                         pass
+                                 except: pass
                              
                              if val is None:
                                   if 'DOM' in options:
@@ -1512,7 +1533,7 @@ class ThoroughbredBasicInterpreter:
                                       jumped = True # Handled via ERR
                              
                              if not jumped and val is not None:
-                                 if cmd == 'EXTRACTRECORD':
+                                 if cmd in ('EXTRACTRECORD', 'READRECORD', 'FINDRECORD'):
                                       # Special single var
                                       if args and args[0].get('var_name'):
                                           self.variables[args[0]['var_name']] = "|".join(map(str, val))

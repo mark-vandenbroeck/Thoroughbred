@@ -204,6 +204,16 @@ Als de input-string een oneven lengte heeft, wordt er automatisch een '0' aan de
 
 ## F
 
+### FIND
+**Type:** I/O Directive
+**Syntax:** `FIND (chn [, KEY=k, IND=i]) [var1, ...]`
+**Beschrijving:**
+Controleert of een record bestaat en leest data (optioneel).
+- Werkt zoals `READ`, maar:
+    - Als de sleutel **niet** bestaat (`ERR=11`), wordt de file pointer **niet** verplaatst. (Bij `READ` wel).
+    - Als de sleutel **wel** bestaat, wordt de file pointer bijgewerkt naar dit record.
+    - Op `SORT` bestanden: Verifieert bestaan van sleutel maar draagt geen data over.
+
 ### FOR
 **Type:** Flow Control Directive  
 **Syntax:** `FOR var = start TO end [STEP step]`  
