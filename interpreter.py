@@ -107,6 +107,77 @@ class ThoroughbredBasicInterpreter:
         
         self.line_numbers = sorted(self.program.keys())
 
+    def _get_iolist_items(self, line_number):
+        """
+        Retrieves the tokens defined in an IOLIST at line_number.
+        Returns a list of items to be processed by READ/WRITE/PRINT/INPUT.
+        """
+        line_number = int(line_number)
+        if line_number not in self.program:
+            raise RuntimeError(f"IOLIST line {line_number} not found")
+            
+        tokens = self.program[line_number]
+        if not tokens or tokens[0].type != 'IOLIST':
+            raise RuntimeError(f"Line {line_number} is not an IOLIST")
+            
+        # Parse the IOLIST content
+        # IOLIST A$, B, C, @(10,20), 'CS', "Literal"
+        # We return a list of 'Action Items'
+        items = []
+        current_idx = 1 # Skip IOLIST keyword
+        
+        while current_idx < len(tokens):
+            t = tokens[current_idx]
+            
+            if t.type == 'COMMA' or t.type == 'SEMICOLON':
+                current_idx += 1
+                continue
+                
+            if t.type in ('ID_NUM', 'ID_STR'):
+                # Variable
+                items.append({'type': 'VAR', 'token': t})
+                current_idx += 1
+            elif t.type == 'OP' and t.value == '*':
+                # SKIP (*)
+                items.append({'type': 'SKIP'})
+                current_idx += 1
+            elif t.type == 'MNEMONIC':
+                items.append({'type': 'MNEMONIC', 'value': t.value[1:-1]})
+                current_idx += 1
+            elif t.type == 'STRING' or t.type == 'NUMBER':
+                # Literal output
+                 items.append({'type': 'LITERAL', 'value': t.value})
+                 current_idx += 1
+            elif t.type == 'AT':
+                # Cursor @(col, row)
+                try:
+                    if current_idx+1 < len(tokens) and tokens[current_idx+1].type == 'LPAREN':
+                        # Find matching RPAREN
+                        depth = 0
+                        paren_end = -1
+                        for i in range(current_idx+1, len(tokens)):
+                            tk = tokens[i]
+                            if tk.type == 'LPAREN': depth +=1
+                            elif tk.type == 'RPAREN': 
+                                depth -= 1
+                                if depth == 0: 
+                                    paren_end = i
+                                    break
+                                    
+                        if paren_end != -1:
+                            items.append({'type': 'CURSOR', 'tokens': tokens[current_idx:paren_end+1]})
+                            current_idx = paren_end + 1
+                        else:
+                             current_idx += 1
+                    else:
+                         current_idx += 1
+                except:
+                     current_idx += 1
+            else:
+                 current_idx += 1
+                 
+        return items
+
     def evaluate_expression(self, tokens):
         """
         A simplified expression evaluator that handles:
@@ -1217,122 +1288,191 @@ class ThoroughbredBasicInterpreter:
                 except Exception as e:
                     if not self._handle_file_error('ERR', options): raise e
 
-            elif cmd == 'OPEN':
+            elif cmd in ('OPEN', 'READ', 'WRITE', 'CLOSE', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'REMOVE', 'INPUT'):
+                # 1. Parse Channel (if present)
+                channel = 0
                 idx = 1
-                chn = 0
-                if tokens[idx].type == 'LPAREN':
-                    chn = tokens[idx+1].value
+                if idx < len(tokens) and tokens[idx].type == 'LPAREN':
+                    channel = int(tokens[idx+1].value)
                     idx += 3
-                filename = tokens[idx].value[1:-1]
-                idx += 1
+
+                # 2. Parse Filename (for OPEN/ERASE-like context, though ERASE is separate)
+                filename = None
                 file_type = None
                 rec_len = None
-
-                # Parse options (DIRECT, ERR= etc)
+                
+                if cmd == 'OPEN':
+                     if idx < len(tokens) and tokens[idx].type == 'STRING':
+                         filename = tokens[idx].value[1:-1]
+                         idx += 1
+                
+                # 3. Parse Options and Arguments
+                options = {}
+                args = [] # list of {value, var_name, is_all, is_skip}
+                
+                # Helper: Extract comma-separated raw args first
+                raw_args = []
+                current_arg = []
+                depth = 0
+                
                 while idx < len(tokens):
                     t = tokens[idx]
-                    if t.type == 'COMMA': idx += 1; continue
-                    if t.type in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'): file_type = t.type
-                    elif t.type == 'ERR':
-                        idx += 2; options['ERR'] = tokens[idx].value
-                    elif t.type in ('IND', 'KEY'): # Still support for backwards compatibility or specific Thoroughbred syntax
-                        idx += 2; rec_len = tokens[idx].value
-                    idx += 1
-
-                try:
-                    self.file_manager.open(chn, filename, file_type, rec_len)
-                    self.current_line_idx += 1
-                except FileNotFoundError as e:
-                    if not self._handle_file_error('ERR', options):
-                        print(f"Runtime Error at line {self.line_numbers[self.current_line_idx]}: {e}")
-                        raise ExecutionFinished() # Stop execution if no ERR= handling
-                except Exception as e:
-                    if not self._handle_file_error('ERR', options): raise e
-
-            elif cmd == 'CLOSE':
-                self.file_manager.close(tokens[2].value)
-                self.current_line_idx += 1
-
-            elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'REMOVE'):
-                chn = tokens[2].value
-                idx = 3
-                key, ind = None, None
-
-                while idx < len(tokens) and tokens[idx].type != 'RPAREN':
-                    t = tokens[idx]
-                    if t.type in ('IND', 'KEY', 'ERR', 'DOM'):
-                        opt_type = t.type
-                        idx += 2
-                        val = self.evaluate_expression([tokens[idx]])
-                        if opt_type == 'IND': ind = val
-                        elif opt_type == 'KEY': key = val
-                        else: options[opt_type] = val
-                    idx += 1
-
-                if idx < len(tokens) and tokens[idx].type == 'RPAREN': idx += 1
-                if idx < len(tokens) and tokens[idx].type == 'COMMA': idx += 1
-
-                jumped = False
-                try:
-                    if cmd == 'WRITE':
-                        values = []
-                        current_expr = []
-                        while idx < len(tokens):
-                            if tokens[idx].type == 'COMMA':
-                                if current_expr: values.append(self.evaluate_expression(current_expr)); current_expr = []
-                            else: current_expr.append(tokens[idx])
+                    if t.type in ('LPAREN', 'LBRACKET'): depth += 1
+                    elif t.type in ('RPAREN', 'RBRACKET'): 
+                        depth -= 1
+                        if depth < 0:
+                            # Closing paren of Channel Spec (or mismatched)
+                            # Flush current arg if any
+                            if current_arg: raw_args.append(current_arg)
+                            current_arg = []
+                            depth = 0
                             idx += 1
-                        if current_expr: values.append(self.evaluate_expression(current_expr))
+                            continue
 
-                        if key is not None or ind is not None:
-                            existing = self.file_manager.read(chn, key=key, ind=ind)
-                            if existing is not None and 'DOM' in options:
-                                if self._handle_file_error('DOM', options): jumped = True
+                    if depth == 0 and t.type == 'COMMA':
+                        if current_arg: raw_args.append(current_arg)
+                        current_arg = []
+                    else:
+                        current_arg.append(t)
+                    idx += 1
+                if current_arg: raw_args.append(current_arg)
+                
+                iol_line = None
+                
+                for r_arg in raw_args:
+                    if not r_arg: continue
+                    # Check for Assignment: KEY=, IND=, ERR=, IOL=, DOM=
+                    if len(r_arg) >= 3 and r_arg[1].type == 'ASSIGN' and r_arg[1].value == '=':
+                        kw = r_arg[0].value
+                        val = self.evaluate_expression(r_arg[2:])
+                        if kw == 'IOL': iol_line = val
+                        else: options[kw] = val
+                    # Check for options like DIRECT, SORT, etc (single tokens)
+                    elif len(r_arg) == 1 and r_arg[0].type in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'):
+                        file_type = r_arg[0].type
+                    elif len(r_arg) == 1 and r_arg[0].type == 'OP' and r_arg[0].value == '*':
+                        args.append({'is_skip': True}) # SKIP
+                    else:
+                        # Variable or Value
+                        # Identify ALL
+                        is_all = False
+                        toks = r_arg
+                        if toks[0].type == 'ALL':
+                            is_all = True
+                            toks = toks[1:]
+                        
+                        var_name = None
+                        # Heuristic: if it looks like a variable, store name. 
+                        # READ needs name. WRITE evaluates value (unless needed for something else).
+                        if len(toks) == 1 and toks[0].type in ('ID_NUM', 'ID_STR'):
+                            var_name = toks[0].value
+                        
+                        # Evaluate value for WRITE/OPEN/etc
+                        # For READ with var_name, we don't eval yet? 
+                        # Actually we do NOT eval for READ.
+                        val = None
+                        if cmd not in ('READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'INPUT') or var_name is None:
+                             # Try to eval
+                             try: val = self.evaluate_expression(toks)
+                             except: pass 
+                        
+                        args.append({'value': val, 'var_name': var_name, 'is_all': is_all, 'tokens': toks})
 
-                        if not jumped:
-                            self.file_manager.write(chn, key=key, ind=ind, values=values)
-
+                # 4. Integrate IOLIST
+                if iol_line:
+                    iol_items = self._get_iolist_items(iol_line)
+                    for item in iol_items:
+                        if item['type'] == 'VAR':
+                             args.append({'var_name': item['token'].value, 'is_all': False, 'value': None})
+                        elif item['type'] == 'SKIP':
+                             args.append({'is_skip': True})
+                        elif item['type'] == 'LITERAL':
+                            # WRITE uses literals. READ ignores.
+                            if cmd in ('WRITE', 'PRINT'):
+                                 args.append({'value': item['value']})
+                        elif item['type'] == 'MNEMONIC':
+                            if cmd == 'PRINT': 
+                                pass
+                        elif item['type'] == 'CURSOR':
+                             pass
+                
+                # 5. EXECUTE COMMAND
+                try:
+                    jumped = False
+                    
+                    if cmd == 'OPEN':
+                        file_type = file_type or options.get('type') # Helper?
+                        rec_len = rec_len or options.get('rec_len') # Logic?
+                        # Fallback for old parsing: KEY=10 -> rec_len?
+                        # New parser puts IND/KEY in options.
+                        # basic.py logic: "elif t.type in ('IND', 'KEY'): idx+=2; rec_len=..."
+                        # We need to respect that usage if we see IND/KEY but meant rec_len?
+                        # Actually, in OPEN, KEY/IND usually define key length.
+                        # Let's use whatever we found.
+                        
+                        self.file_manager.open(channel, filename, file_type, rec_len)
+                        
+                    elif cmd == 'CLOSE':
+                        self.file_manager.close(channel)
+                        
                     elif cmd == 'REMOVE':
-                        if not jumped:
-                            try:
-                                self.file_manager.remove(chn, key=key)
-                            except FileNotFoundError:
-                                if 'DOM' in options:
-                                    if self._handle_file_error('DOM', options): jumped = True
-                                elif not self._handle_file_error('ERR', options):
-                                    raise RuntimeError(f"Key not found on channel {chn} (ERR=11)")
-                            except Exception as e:
-                                if not self._handle_file_error('ERR', options): raise e
-
-                    elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD'):
-                        if not jumped:
-                            # Use proper method based on command
-                            if cmd in ('EXTRACT', 'EXTRACTRECORD'):
-                                val = self.file_manager.extract(chn, key=key, ind=ind)
-                            else:
-                                val = self.file_manager.read(chn, key=key, ind=ind)
-                                
-                            if val is None:
-                                # EOF or not found logic (simplified)
-                                if 'DOM' in options:
-                                     if self._handle_file_error('DOM', options): jumped = True
-                                if not jumped:
-                                     raise RuntimeError("End of file or record not found")
-                            
-                            if not jumped and val is not None:
-                                if cmd == 'EXTRACTRECORD':
-                                    var_tok = tokens[idx]
-                                    self.variables[var_tok.value] = "|".join(map(str, val))
-                                else:
-                                    var_idx = 0
-                                    while idx < len(tokens):
-                                        t = tokens[idx]
-                                        if t.type in ('ID_NUM', 'ID_STR'):
-                                            # Assign from data
-                                            if var_idx < len(val):
-                                                self.variables[t.value] = val[var_idx]
-                                            var_idx += 1
-                                        idx += 1
+                         self.file_manager.remove(channel, key=options.get('KEY'))
+                    
+                    elif cmd in ('WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND'):
+                        key = options.get('KEY')
+                        ind = options.get('IND')
+                        
+                        if cmd == 'WRITE':
+                             values = []
+                             for a in args:
+                                 if a.get('is_skip'): continue
+                                 if a.get('value') is not None: values.append(a['value'])
+                                 # What if it was a variable we didn't eval?
+                                 elif a.get('var_name'):
+                                     values.append(self.variables.get(a['var_name'], ""))
+                             
+                             # Check DOM
+                             if key is not None or ind is not None:
+                                 existing = self.file_manager.read(channel, key=key, ind=ind)
+                                 if existing is not None and 'DOM' in options:
+                                      if self._handle_file_error('DOM', options): jumped = True
+                             
+                             if not jumped:
+                                 self.file_manager.write(channel, key=key, ind=ind, values=values)
+                        
+                        elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD'):
+                             # READ
+                             if cmd in ('EXTRACT', 'EXTRACTRECORD'):
+                                 # Locking logic? Not implemented.
+                                 val = self.file_manager.extract(channel, key=key, ind=ind)
+                             else:
+                                 val = self.file_manager.read(channel, key=key, ind=ind)
+                             
+                             if val is None:
+                                  if 'DOM' in options:
+                                      if self._handle_file_error('DOM', options): jumped = True
+                                  if not jumped:
+                                      # EOF
+                                      if not self._handle_file_error('ERR', options): # ERR=2 usually
+                                           raise RuntimeError("End of file or record not found")
+                                      jumped = True # Handled via ERR
+                             
+                             if not jumped and val is not None:
+                                 if cmd == 'EXTRACTRECORD':
+                                      # Special single var
+                                      if args and args[0].get('var_name'):
+                                          self.variables[args[0]['var_name']] = "|".join(map(str, val))
+                                 else:
+                                     # Distribute values
+                                     var_idx = 0
+                                     for a in args:
+                                         if a.get('is_skip'):
+                                             var_idx += 1
+                                             continue
+                                         if a.get('var_name'):
+                                             if var_idx < len(val):
+                                                 self.variables[a['var_name']] = val[var_idx]
+                                             var_idx += 1
 
                     if not jumped:
                         self.current_line_idx += 1

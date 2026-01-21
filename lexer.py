@@ -45,8 +45,9 @@ class Lexer:
             'AND', 'OR', 'NOT', 'XOR',
             'SETTRACE', 'ENDTRACE', 'SET', 'TRACEMODE', 'STOP', 'DTN',
             'ATH', 'HTA', 'MAX', 'MIN',
-            'ATH', 'HTA', 'MAX', 'MIN',
-            'NUM', 'NTP', 'SIZ', 'ERC', 'ON'
+            'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY',
+            'NUM', 'NTP', 'SIZ', 'ERC', 'ON',
+            'IOLIST', 'IOL'
         }
 
     def tokenize(self, text):
