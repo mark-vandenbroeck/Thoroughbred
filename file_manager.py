@@ -6,6 +6,7 @@ class FileManager:
         self.channels = {} # chan_num -> {type, filename, data, pos}
         self.storage_dir = "basic_storage"
         self.disks = {} # D0 -> path, D1 -> path
+        self.program_paths = ['.']
         self.load_iplinput()
         
         # Ensure default storage exists if no disks
@@ -23,13 +24,31 @@ class FileManager:
                             key, val = line.split('=', 1)
                             key = key.strip().upper()
                             val = val.strip()
-                            self.disks[key] = val
-                            if not os.path.exists(val):
-                                try:
-                                    os.makedirs(val)
-                                except: pass # Just warn?
+                            if key == 'PATH':
+                                # Split by commas, strip, and store
+                                self.program_paths = [p.strip() for p in val.split(',')]
+                            else:
+                                self.disks[key] = val
+                                if not os.path.exists(val):
+                                    try:
+                                        os.makedirs(val)
+                                    except: pass # Just warn?
         except Exception as e:
             print(f"Warning: Error loading IPLINPUT: {e}")
+
+    def find_program(self, filename):
+        """Searches for a program in the defined program_paths."""
+        trial_names = [filename]
+        if not filename.lower().endswith('.bas'):
+            trial_names.append(filename + ".bas")
+            trial_names.append(filename + ".BAS")
+            
+        for path in self.program_paths:
+            for trial in trial_names:
+                full_path = os.path.join(path, trial)
+                if os.path.exists(full_path) and os.path.isfile(full_path):
+                    return full_path
+        return None
 
     def _get_path(self, filename, disk_num=None, search=False):
         # 1. If explicit disk provided (for CREATE)

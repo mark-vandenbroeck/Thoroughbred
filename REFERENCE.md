@@ -8,17 +8,17 @@ Deze handleiding bevat een gedetailleerd alfabetisch overzicht van alle geïmple
 
 De interpreter maakt gebruik van een **'Disk' systeem** voor bestandsbeheer, waarbij logische disk-namen (zoals `D0`, `D1`) worden gekoppeld aan fysieke directories op het hostsysteem.
 
-### IPLINPUT
-Bij het opstarten leest de interpreter configuratie uit `IPLINPUT` in de huidige werkmap.
-**Structuur:**
-`DISKNAAM = /pad/naar/directory`
+Bij bestandsoperaties (zoals `OPEN`) wordt standaard gezocht in de volgorde: `D0`, `D1`, enz., tenzij een specifiek pad of disknummer is opgegeven.
+
+### PATH (Program Search Paths)
+Naast disk-mappingen kan `IPLINPUT` een `PATH` bevatten:
+`PATH = pad1, pad2, ...`
 
 **Voorbeeld:**
-```text
-D0 = ./data/primary
-D1 = ./data/backup
-```
-Bij bestandsoperaties (zoals `OPEN`) wordt standaard gezocht in de volgorde: `D0`, `D1`, enz., tenzij een specifiek pad of disknummer is opgegeven.
+`PATH = ., ./programmas, ./tests`
+
+De interpreter zoekt in deze directories (in de opgegeven volgorde) naar BASIC programma's bij het laden (`LOAD`) of aanroepen (`CALL`).
+
 
 ### Bestanden Aanmaken
 Bij commando's zoals `DIRECT`, `INDEXED`, `SERIAL` en `SORT` kan een disk-nummer worden opgegeven om te bepalen waar het bestand wordt aangemaakt.

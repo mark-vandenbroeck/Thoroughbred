@@ -309,17 +309,18 @@ class BasicCLI:
             self.print(f"Error saving: {e}")
 
     def load_program(self, filename):
-        if not os.path.exists(filename):
+        resolved_path = self.interpreter.file_manager.find_program(filename)
+        if not resolved_path:
             self.print(f"File not found: {filename}")
             return
         try:
             self.source_lines = {}
-            with open(filename, 'r') as f:
+            with open(resolved_path, 'r') as f:
                 for line in f:
                     parts = line.strip().split(' ', 1)
                     if len(parts) == 2 and parts[0].isdigit():
                         self.source_lines[int(parts[0])] = parts[1]
-            self.print(f"Loaded {filename}")
+            self.print(f"Loaded {resolved_path}")
         except Exception as e:
             self.print(f"Error loading: {e}")
 

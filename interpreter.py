@@ -1663,20 +1663,14 @@ class ThoroughbredBasicInterpreter:
                     args.append({'value': val, 'var_name': var_name, 'is_all': is_all})
 
             # Search for program
-            # Search for program
-            filename = prog_name + ".bas"
-            if not os.path.exists(filename):
-                # Try tests directory
-                test_filename = os.path.join("tests", filename)
-                if os.path.exists(test_filename):
-                    filename = test_filename
-                elif not self._handle_file_error('ERR', options):
-                    raise RuntimeError(f"ERR=12: Program not found: {filename}")
-                else:
-                     return
+            resolved_path = self.file_manager.find_program(prog_name)
+            if not resolved_path:
+                if not self._handle_file_error('ERR', options):
+                    raise RuntimeError(f"ERR=12: Program not found: {prog_name}")
+                return
 
             # Load and execute
-            with open(filename, 'r') as f:
+            with open(resolved_path, 'r') as f:
                 source = f.read()
 
             # Create temporary interpreter to parse

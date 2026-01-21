@@ -196,14 +196,18 @@
         <p>On startup, the interpreter reads the configuration file <code>IPLINPUT</code> from the current working
             directory.</p>
         <strong>Format:</strong>
-        <pre><code>DISKNAME = /path/to/directory</code></pre>
+        <pre><code>DISKNAME = /path/to/directory
+PATH = path1, path2, ...</code></pre>
 
         <strong>Example:</strong>
         <pre><code>D0 = ./data/primary
-D1 = ./data/backup</code></pre>
+PATH = ., ./programs, ./tests</code></pre>
         <p>For file operations (like <code>OPEN</code>), the system searches in the order: <code>D0</code>,
             <code>D1</code>, etc., unless a specific path or disk number is provided.
         </p>
+        <p>The <code>PATH</code> directive defines a comma-separated list of directories where the interpreter
+            searches for BASIC programs when loading (<code>LOAD</code>) or calling (<code>CALL</code>). Directories are
+            searched in the order they are listed.</p>
 
         <h3>Creating Files</h3>
         disk number to specify where the file should be created.</p>
@@ -375,7 +379,8 @@ D1 = ./data/backup</code></pre>
         <p>Checks for a record and optionally reads data.</p>
         <ul>
             <li>Behaves like <code>READ</code>, except that if the key is not found, the file pointer is
-                <strong>not</strong> moved.</li>
+                <strong>not</strong> moved.
+            </li>
             <li>If the record is found, the file pointer is updated to that record.</li>
             <li>On <code>SORT</code> files, it verifies the existence of the key but does not transfer data.</li>
         </ul>
