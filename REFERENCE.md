@@ -84,6 +84,21 @@ Als de input-string een oneven lengte heeft, wordt er automatisch een '0' aan de
 
 ---
 
+## B
+
+### BIN
+**Type:** String Functie  
+**Syntax:** `BIN(numeric-value, result-length [,ERR=line-ref|,ERC=error-code])`  
+**Beschrijving:** Converteert een (signed) integer naar zijn binaire equivalent (big-endian), sign-extended tot de opgegeven lengte in bytes.
+- Negatieve getallen worden geconverteerd naar hun 'two's-complement' vorm.
+- Extra bytes worden opgevuld met nul bits (`$00$`) voor positieve getallen en één bits (`$FF$`) voor negatieve getallen.
+- Als de waarde geen integer is, resulteert dit in een `ERR=26`.
+**Voorbeelden:**
+- `HTA(BIN(65,3))` &rarr; `"000041"`
+- `HTA(BIN(-65,3))` &rarr; `"FFFFBF"`
+
+---
+
 ## C
 
 ### CALL
@@ -130,6 +145,17 @@ Als de input-string een oneven lengte heeft, wordt er automatisch een '0' aan de
 ---
 
 ## D
+
+### DEC
+**Type:** Numerieke Functie  
+**Syntax:** `DEC(string-value [,ERR=line-ref|,ERC=error-code])`  
+**Beschrijving:** Retourneert de decimale gehele waarde van een ASCII-waarde string.
+- De `DEC` functie is het omgekeerde van de `BIN` functie.
+- Het meest linkse bit wordt behandeld als een teken-bit (sign bit). Als dit bit 1 is, wordt een negatief getal gegeneerd.
+**Voorbeelden:**
+- `DEC("A")` &rarr; `65`
+- `DEC("AB")` &rarr; `16706`
+- `DEC(BIN(193,1))` &rarr; `-63`
 
 ### DIM
 **Type:** Declaratie Directive  
@@ -274,10 +300,10 @@ Controleert of een record bestaat en leest data (optioneel).
 
 ### INPUT
 **Type:** I/O Directive  
-**Syntax:** `INPUT [channel, opties] "Prompt: ", var1, var2...`  
-**Beschrijving:** Vraagt invoer van de gebruiker (standaard kanaal 0) of leest van een terminal-kanaal.
-- `INPUT "Naam: ", N$`
+**Syntax:** `INPUT [@(col, row),] [mnemonic,] ["Prompt: ",] vars...`  
+**Beschrijving:** Vraagt om gebruikersinvoer. Ondersteunt nu cursor-adressering en mnemonics (zoals `'CS'`, `'BR'`), vergelijkbaar met `PRINT`.
 - Ondersteunt `IOL=` opties voor geformatteerde invoer.
+- **Voorbeeld:** `INPUT @(10,5), 'BR', "Naam: ", 'ER', N$`
 
 ### INT
 **Type:** Numerieke Functie  

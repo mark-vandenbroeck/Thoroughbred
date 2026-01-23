@@ -98,7 +98,8 @@ class TerminalGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("Thoroughbred Basic Terminal")
-        self.root.geometry("800x600")
+        # Let the text widget determine the size
+        self.root.resizable(False, False)
         
         # 80x24 character grid, fixed width font
         self.font = font.Font(family="Courier", size=14)
@@ -108,6 +109,7 @@ class TerminalGUI:
                                    insertbackground="green", 
                                    font=self.font,
                                    width=80, height=24,
+                                   wrap=tk.NONE,
                                    padx=5, pady=5)
         self.text_widget.pack(fill=tk.BOTH, expand=True)
         
@@ -203,6 +205,7 @@ class TerminalGUI:
                      # Overwrite existing char
                      self.text_widget.delete(tk.INSERT)
                      self.text_widget.insert(tk.INSERT, char, tuple(tags))
+        self.text_widget.see(tk.END)
 
     def move_cursor(self, col, row):
         self.root.after_idle(self._move_cursor_impl, col, row)
@@ -262,7 +265,8 @@ class TerminalGUI:
         
         # Send input
         text = "".join(self.current_input)
-        self.text_widget.insert(tk.END, "\n")
+        self.text_widget.insert(tk.INSERT, "\n")
+        self.text_widget.see(tk.END)
         self.input_enabled = False
         self.io_handler.input_queue.put(text)
         return "break"
@@ -361,6 +365,13 @@ class BasicCLI:
         while True:
             try:
                 user_input = self.input("> ").strip()
+            except EOFError:
+                break
+            except Exception as e:
+                self.print(f"CLI Error: {e}")
+                continue
+            
+            try:
                 if not user_input:
                     continue
                 

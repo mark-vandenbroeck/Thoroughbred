@@ -1,2 +1,4 @@
 D0 = basic_storage/d0
 D1 = basic_storage/d1
+
+PATH = ., ./programmas, ./tests

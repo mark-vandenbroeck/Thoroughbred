@@ -38,6 +38,30 @@ class ThoroughbredBasicInterpreter:
         self.retry_index = 0 # Index of the line to retry
         self.last_error_line = None 
 
+    def reset_state(self):
+        """Resets the interpreter to a clean state for a new execution."""
+        self.context_stack = []
+        self._push_context({}, [])
+        
+        # Reset trace state
+        self.trace_enabled = False
+        self.trace_channel = 0
+        self.trace_mode = "FULL"
+        self.trace_options = set()
+        self.trace_delay = 0
+
+        # Reset error handling state
+        self.seterr_line = 0
+        self.seterr_active = False
+        self.seterr_saved = 0
+        self.retry_index = 0
+        self.last_error_line = None
+
+        # Reset files
+        for chn in list(self.file_manager.channels.keys()):
+            try: self.file_manager.close(chn)
+            except: pass
+
 
     def _push_context(self, program, line_numbers, variables=None, passed_args=None):
         self.context_stack.append({
@@ -85,6 +109,7 @@ class ThoroughbredBasicInterpreter:
             self._dispatch_statement(tokens)
 
     def load_program(self, source_code):
+        self.reset_state()
         self.program = {}
         self.program_source = {} # line_number -> raw source string
         
@@ -292,7 +317,7 @@ class ThoroughbredBasicInterpreter:
                     'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
                     'MOD', 'ROUND', 'FPT', 'IPT',
                     'AND', 'OR', 'NOT', 'XOR', 'DTN',
-                    'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY'}
+                    'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY', 'BIN', 'DEC'}
 
         # KEY function logic
         if tokens[0].type == 'KEY' and len(tokens) > 2 and tokens[1].type == 'LPAREN':
@@ -449,6 +474,95 @@ class ThoroughbredBasicInterpreter:
                     # Hex to ASCII (returns hex string of input bytes)
                     s = str(val1)
                     return s.encode('latin1').hex().upper()
+                elif func == 'BIN':
+                    # BIN(numeric-value, result-length [,ERR=line-ref|,ERC=error-code])
+                    # numeric-value is an integer
+                    # result-length is 1 to 32600
+                    
+                    try:
+                        # Check if first arg is numeric and integer
+                        if not isinstance(val1, (int, float)):
+                            raise ValueError("ERR=26: Numeric value required")
+                        
+                        if isinstance(val1, float) and not val1.is_integer():
+                            raise ValueError("ERR=26: Integer required")
+                        
+                        num = int(val1)
+                        length = int(eval_arg(1))
+                        
+                        # Parse options (ERR, ERC)
+                        err_line = None
+                        erc_code = None
+                        for i in range(2, len(args)):
+                            arg_tokens = args[i]
+                            if len(arg_tokens) >= 3 and arg_tokens[1].type == 'ASSIGN' and arg_tokens[1].value == '=':
+                                kw = arg_tokens[0].type
+                                val = self.evaluate_expression(arg_tokens[2:])
+                                if kw == 'ERR': err_line = int(val)
+                                elif kw == 'ERC': erc_code = int(val)
+                        
+                        try:
+                            # Convert to binary
+                            # Use unsigned for positive values to allow e.g. BIN(193, 1)
+                            # Use signed for negative values for two's complement.
+                            if num >= 0:
+                                res_bytes = num.to_bytes(length, byteorder='big', signed=False)
+                            else:
+                                res_bytes = num.to_bytes(length, byteorder='big', signed=True)
+                            return res_bytes.decode('latin1')
+                        except OverflowError:
+                            # If result-length is too small
+                            if err_line is not None: raise BasicErrorJump(err_line)
+                            raise RuntimeError(f"ERR=26: Value {num} does not fit in {length} bytes")
+                        except Exception as e:
+                            if err_line is not None: raise BasicErrorJump(err_line)
+                            raise e
+
+                    except Exception as e:
+                        # Handle ERR=26 or others
+                        # Refined error handling: search for ERR= in args if not already found
+                        # (But we already parsed it above for the main logic)
+                        
+                        # Re-parse if needed if exception happened before loop
+                        err_line = None
+                        for i in range(1, len(args)): # Check all args for ERR=
+                            arg_tokens = args[i]
+                            if len(arg_tokens) >= 3 and arg_tokens[1].type == 'ASSIGN' and arg_tokens[1].value == '=':
+                                if arg_tokens[0].type == 'ERR':
+                                    try: err_line = int(self.evaluate_expression(arg_tokens[2:]))
+                                    except: pass
+                        
+                        if err_line is not None:
+                            raise BasicErrorJump(err_line)
+                        
+                        # Default error code for BIN is often 26 for non-integers
+                        if "Integer" in str(e) or "Numeric" in str(e):
+                            raise RuntimeError("ERR=26: Invalid parameter")
+                        raise e
+                elif func == 'DEC':
+                    # DEC (string-value [,ERR=line-ref|,ERC=error-code])
+                    try:
+                        if not isinstance(val1, str):
+                            raise ValueError("String required")
+                        
+                        data = val1.encode('latin1')
+                        if not data:
+                            return 0
+                        
+                        # int.from_bytes with signed=True handles the leftmost bit as sign bit in two's complement.
+                        return int.from_bytes(data, byteorder='big', signed=True)
+                    except Exception as e:
+                        # Handle ERR=
+                        err_line = None
+                        for i in range(1, len(args)):
+                            arg_tokens = args[i]
+                            if len(arg_tokens) >= 3 and arg_tokens[1].type == 'ASSIGN' and arg_tokens[1].value == '=':
+                                if arg_tokens[0].type == 'ERR':
+                                    try: err_line = int(self.evaluate_expression(arg_tokens[2:]))
+                                    except: pass
+                        if err_line is not None:
+                            raise BasicErrorJump(err_line)
+                        raise e
                 elif func in ('MAX', 'MIN'):
                     # MAX(v1, v2, ...) / MIN(v1, v2, ...)
                     values = []
@@ -1244,26 +1358,133 @@ class ThoroughbredBasicInterpreter:
                 self.current_line_idx += 1
 
         elif cmd == 'INPUT':
-            prompt = ""
-            var_token = None
-            if tokens[1].type == 'STRING':
-                prompt = tokens[1].value[1:-1]
-                var_token = tokens[3] if len(tokens) > 3 else tokens[1]
-            else:
-                var_token = tokens[1]
-
-            if self.io_handler:
-                user_input = self.io_handler.input(prompt)
-            else:
-                user_input = input(prompt)
-
-            if var_token.type == 'ID_NUM':
+            # Support: INPUT @(col,row), 'CS', "Prompt: ", VAR$
+            current_idx = 1
+            prompt_parts = []
+            
+            # 1. Handle cursor addressing @(col,row) at start
+            if current_idx < len(tokens) and tokens[current_idx].type == 'AT':
                 try:
-                    self.variables[var_token.value] = float(user_input) if '.' in user_input else int(user_input)
-                except ValueError:
-                    self.variables[var_token.value] = 0
+                    if tokens[current_idx+1].type == 'LPAREN':
+                        paren_end = -1
+                        depth = 0
+                        for i in range(current_idx+1, len(tokens)):
+                            if tokens[i].type == 'LPAREN': depth += 1
+                            elif tokens[i].type == 'RPAREN': 
+                                depth -= 1
+                                if depth == 0: 
+                                    paren_end = i
+                                    break
+                        if paren_end != -1:
+                            inside = tokens[current_idx+2:paren_end]
+                            parts = []
+                            curr = []
+                            d = 0
+                            for t in inside:
+                                if t.type in ('LPAREN', 'LBRACKET'): d+=1
+                                elif t.type in ('RPAREN', 'RBRACKET'): d-=1
+                                if d==0 and t.type == 'COMMA':
+                                    parts.append(curr)
+                                    curr = []
+                                else:
+                                    curr.append(t)
+                            if curr: parts.append(curr)
+                            
+                            if len(parts) >= 2:
+                                col = int(self.evaluate_expression(parts[0]))
+                                row = int(self.evaluate_expression(parts[1]))
+                                if self.io_handler:
+                                    self.io_handler.move_cursor(col, row)
+                            current_idx = paren_end + 1
+                except Exception: pass
+
+            # 2. Process mnemonics and collect prompt parts
+            target_vars = []
+            expr_tokens = []
+            
+            i = current_idx
+            while i < len(tokens):
+                t = tokens[i]
+                if t.type == 'MNEMONIC':
+                    # Handle Mnemonic
+                    # Flush current prompt if any
+                    if expr_tokens:
+                        prompt_parts.append(str(self.evaluate_expression(expr_tokens)))
+                        expr_tokens = []
+                        
+                    mnemonic = t.value[1:-1]
+                    if self.io_handler:
+                        # Flush existing prompt parts to terminal
+                        if prompt_parts:
+                            self.io_handler.write(" ".join(prompt_parts))
+                            prompt_parts = []
+                        
+                        if mnemonic == 'CS': self.io_handler.clear_screen()
+                        elif mnemonic == 'BR': self.io_handler.set_reverse(True)
+                        elif mnemonic == 'ER': self.io_handler.set_reverse(False)
+                        elif mnemonic == 'BU': self.io_handler.set_underline(True)
+                        elif mnemonic == 'EU': self.io_handler.set_underline(False)
+                        elif mnemonic == 'VT': self.io_handler.move_relative(0, -1)
+                        elif mnemonic == 'LF': self.io_handler.move_relative(0, 1)
+                        elif mnemonic == 'BS': self.io_handler.move_relative(-1, 0)
+                        elif mnemonic == 'CH': self.io_handler.move_cursor(0, 0)
+                        elif mnemonic == 'CE': self.io_handler.clear_eos()
+                        elif mnemonic == 'CL': self.io_handler.clear_eol()
+                        elif mnemonic == 'LD': self.io_handler.delete_line()
+                elif t.type == 'COMMA':
+                    if expr_tokens:
+                        # If the expression looks like a variable, it might be the target
+                        # But wait, Thoroughbred INPUT usually has the prompt last or first?
+                        # Standard: INPUT "Prompt", VAR
+                        # Let's assume anything that is NOT a string/expression before the last comma is a prompt part.
+                        # Actually, let's just collect all expressions.
+                        prompt_parts.append(str(self.evaluate_expression(expr_tokens)))
+                        expr_tokens = []
+                elif t.type in ('ID_NUM', 'ID_STR'):
+                    # PEEK AHEAD: is this the LAST token? or followed only by commas?
+                    # If it's a variable at the end, it's the target.
+                    is_last = True
+                    for j in range(i+1, len(tokens)):
+                        if tokens[j].type not in ('COMMA', 'SEMICOLON'):
+                            is_last = False
+                            break
+                    
+                    if is_last:
+                        target_vars.append(t)
+                    else:
+                        expr_tokens.append(t)
+                else:
+                    expr_tokens.append(t)
+                i += 1
+            
+            if expr_tokens:
+                # Last expression? If target_vars is empty, the last expression must be the target variable if it is one.
+                # If we have multiple vars: INPUT A, B, C
+                if not target_vars and expr_tokens[-1].type in ('ID_NUM', 'ID_STR'):
+                    target_vars.append(expr_tokens.pop())
+                
+                if expr_tokens: # Remaining are prompt
+                     prompt_parts.append(str(self.evaluate_expression(expr_tokens)))
+
+            final_prompt = " ".join(prompt_parts)
+            
+            # 3. Perform input
+            if self.io_handler:
+                user_input = self.io_handler.input(final_prompt)
             else:
-                self.variables[var_token.value] = user_input
+                user_input = input(final_prompt)
+
+            # 4. Assign value
+            if target_vars:
+                var_token = target_vars[0] # Single input for now
+                if var_token.type == 'ID_NUM':
+                    try:
+                        self.variables[var_token.value] = float(user_input) if '.' in user_input else int(user_input)
+                    except ValueError:
+                        self.variables[var_token.value] = 0
+                else:
+                    self.variables[var_token.value] = user_input
+            
             self.current_line_idx += 1
 
         elif cmd == 'FOR':

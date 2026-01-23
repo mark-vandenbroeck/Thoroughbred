@@ -14,7 +14,7 @@ class Lexer:
         # Token specification
         self.token_specification = [
             ('NUMBER',   r'(?:\d+(?:\.\d*)?|\.\d+)'),  # Integer or decimal number
-            ('STRING',   r'"[^"]*"'),      # String literal
+            ('STRING',   r'"(?:""|[^"])*"'), # String literal (handles "" as escaped ")
             ('MNEMONIC', r"'[A-Z0-9]+'"),  # Thoroughbred Mnemonics (e.g. 'CS')
             ('ID_STR',   r'[A-Z][A-Z0-9]*\$'), # String variable
             ('ID_NUM',   r'[A-Z][A-Z0-9]*'),    # Numeric variable
@@ -45,7 +45,7 @@ class Lexer:
             'AND', 'OR', 'NOT', 'XOR',
             'SETTRACE', 'ENDTRACE', 'SET', 'TRACEMODE', 'STOP', 'DTN',
             'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY', 'IOLIST', 'IOL',
-            'SETERR', 'RETRY', 'FIND', 'READRECORD', 'FINDRECORD', 'RECORD'
+            'SETERR', 'RETRY', 'FIND', 'READRECORD', 'FINDRECORD', 'RECORD', 'BIN', 'DEC'
         }
 
     def tokenize(self, text):

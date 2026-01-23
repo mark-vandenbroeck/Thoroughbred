@@ -158,6 +158,7 @@
             <li><a href="#config">Configuration</a></li>
             <li><a href="#filetypes">File Formats</a></li>
             <li><a href="#a">A</a></li>
+            <li><a href="#b">B</a></li>
             <li><a href="#c">C</a></li>
             <li><a href="#d">D</a></li>
             <li><a href="#e">E</a></li>
@@ -267,6 +268,23 @@ PATH = ., ./programs, ./tests</code></pre>
         <div class="syntax">ATN(num)</div>
         <p>Returns the arctangent of <code>num</code> in radians.</p>
 
+        <h2 id="b">B</h2>
+
+        <h3>BIN</h3>
+        <span class="cmd-type">String Function</span>
+        <div class="syntax">BIN(numeric-value, result-length [,ERR=line-ref|,ERC=error-code])</div>
+        <p>Converts a (signed) integer into its binary equivalent (big-endian), sign-extended to the specified length in
+            bytes.</p>
+        <ul>
+            <li>Negative numbers are converted to their two's-complement form.</li>
+            <li>Extra bytes are padded with zero bits (<code>$00$</code>) for positive numbers and one bits
+                (<code>$FF$</code>) for negative numbers.</li>
+            <li>If <code>numeric-value</code> is not an integer, an <code>ERR=26</code> results.</li>
+        </ul>
+        <p><strong>Examples:</strong> <code>HTA(BIN(65,3))</code> &rarr; <code>"000041"</code>,
+            <code>HTA(BIN(-65,3))</code> &rarr; <code>"FFFFBF"</code>
+        </p>
+
         <h2 id="c">C</h2>
 
         <h3>CALL</h3>
@@ -307,6 +325,18 @@ PATH = ., ./programs, ./tests</code></pre>
         </ul>
 
         <h2 id="d">D</h2>
+
+        <h3>DEC</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">DEC(string-value [,ERR=line-ref|,ERC=error-code])</div>
+        <p>Returns the decimal integer value of an ASCII character string.</p>
+        <ul>
+            <li>The <code>DEC</code> function is the reverse of the <code>BIN</code> function.</li>
+            <li>The leftmost bit is treated as a sign bit. If the bit is 1, a negative integer is generated.</li>
+        </ul>
+        <p><strong>Examples:</strong> <code>DEC("A")</code> &rarr; <code>65</code>, <code>DEC("AB")</code> &rarr;
+            <code>16706</code>, <code>DEC(BIN(193,1))</code> &rarr; <code>-63</code>
+        </p>
 
         <h3>DIM</h3>
         <span class="cmd-type">Declaration Directive</span>
@@ -428,8 +458,14 @@ PATH = ., ./programs, ./tests</code></pre>
 
         <h3>INPUT</h3>
         <span class="cmd-type">I/O Directive</span>
-        <div class="syntax">INPUT [chn, opts] "Prompt: ", vars...</div>
-        <p>Requests user input or reads from terminal. Supports <code>IOL=</code> formatting.</p>
+        <div class="syntax">INPUT [@(col, row),] [mnemonic,] ["Prompt: ",] vars...</div>
+        <p>Requests user input. Now supports cursor addressing and mnemonics (like <code>'CS'</code>,
+            <code>'BR'</code>),
+            similar to <code>PRINT</code>.</p>
+        <ul>
+            <li>Supports <code>IOL=</code> formatting.</li>
+        </ul>
+        <p><strong>Example:</strong> <code>INPUT @(10,5), 'BR', "Name: ", 'ER', N$</code></p>
 
         <h3>INT</h3>
         <span class="cmd-type">Numeric Function</span>
