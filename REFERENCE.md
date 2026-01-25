@@ -148,6 +148,10 @@ Als de input-string een oneven lengte heeft, wordt er automatisch een '0' aan de
 **Syntax:** `COS(num)`  
 **Beschrijving:** Retourneert de cosinus van hoek `num` (in radialen).
 
+### CTL
+**Type:** System Variable
+**Beschrijving:** Zie [System Variables](#system-variables).
+
 ### CVS
 **Type:** String Functie  
 **Syntax:** `CVS(string, mode)`  
@@ -614,6 +618,13 @@ Gerefereerd via `IOL=line` optie in I/O statement.
 **Type:** Conversie Functie  
 **Syntax:** `STR$(num)`  
 **Beschrijving:** Getal naar string.
+### SYSTEM
+**Type:** Operating System Directive  
+**Syntax:** `SYSTEM [string-value]`  
+**Beschrijving:** Verlaat tijdelijk de Thoroughbred Basic omgeving om OS commando's uit te voeren.
+- Zonder argument: Start een shell. Typ `exit` om terug te keren.
+- Met argument: Voert het commando uit en keert automatisch terug.
+- Beïnvloedt de huidige taakstatus (variabelen, bestanden) niet.
 
 ---
 

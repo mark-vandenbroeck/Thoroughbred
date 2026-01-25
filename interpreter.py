@@ -4,6 +4,7 @@ import re
 import sys
 import math
 import random
+import subprocess
 from datetime import datetime
 
 
@@ -2307,6 +2308,31 @@ class ThoroughbredBasicInterpreter:
                 if self.line_numbers:
                     self.current_line_idx = 0
                     return # DO NOT increment here, so next iter is also 0
+
+        elif cmd == 'SYSTEM':
+            # Execute OS command or drop to shell
+            command = None
+            if len(tokens) > 1:
+                # Expecting a string expression
+                try:
+                    command = str(self.evaluate_expression(tokens[1:]))
+                except:
+                    pass
+
+            if command:
+                try:
+                    subprocess.run(command, shell=True)
+                except Exception as e:
+                    print(f"System command error: {e}")
+            else:
+                # Launch shell
+                shell = os.environ.get('SHELL', '/bin/sh')
+                try:
+                    subprocess.call(shell)
+                except Exception as e:
+                    print(f"Shell launch error: {e}")
+            
+            self.current_line_idx += 1
 
         elif cmd == 'STOP':
 

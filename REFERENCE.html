@@ -156,6 +156,7 @@
         <h3>Contents</h3>
         <ul>
             <li><a href="#config">Configuration</a></li>
+            <li><a href="#sysvars">System Variables</a></li>
             <li><a href="#filetypes">File Formats</a></li>
             <li><a href="#a">A</a></li>
             <li><a href="#b">B</a></li>
@@ -362,6 +363,11 @@ PATH = ., ./programs, ./tests</code></pre>
         <span class="cmd-type">Numeric Function</span>
         <div class="syntax">COS(num)</div>
         <p>Returns the cosine of angle <code>num</code> (in radians).</p>
+
+        <h3>CTL</h3>
+        <span class="cmd-type">System Variable</span>
+        <div class="syntax">CTL</div>
+        <p>See <a href="#sysvars">System Variables</a>.</p>
 
         <h3>CVS</h3>
         <span class="cmd-type">String Function</span>
@@ -781,6 +787,15 @@ PATH = ., ./programs, ./tests</code></pre>
                 <span class="cmd-type">Conversion Function</span>
                 <div class="syntax">STR$(num)</div>
                 <p>Number to string conversion.</p>
+
+                <h3>SYSTEM</h3>
+                <span class="cmd-type">OS Directive</span>
+                <div class="syntax">SYSTEM [string-value]</div>
+                <p>Temporarily exits to the operating system.</p>
+                <ul>
+                    <li><strong>Without argument:</strong> Drops to shell. Type <code>exit</code> to return.</li>
+                    <li><strong>With argument:</strong> Executes command and returns automatically.</li>
+                </ul>
 
                 <h2 id="u">U</h2>
 
