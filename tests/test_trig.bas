@@ -1,0 +1,7 @@
+10 LET X = 0.5
+20 PRINT "TAN(0.5) = "; TAN(X)
+30 PRINT "ASN(0.5) = "; ASN(X)
+40 PRINT "ACS(0.5) = "; ACS(X)
+50 LET Y = TAN(X)
+60 PRINT "ATN(TAN(0.5)) = "; ATN(Y)
+70 END

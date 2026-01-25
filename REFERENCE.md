@@ -66,6 +66,11 @@ Sequentiële bestanden. Records worden achter elkaar geschreven.
 - Toegang via 'Random Access' (`READ (chn, IND=i)`) is mogelijk maar minder efficiënt.
 - **Aanmaken:** `SERIAL "naam", rec_len, disk`
 
+### TEXT
+Character-oriented flat files compatible with system text files.
+- Geen record-structuur. Toegang op byte-niveau.
+- **Aanmaken:** `TEXT "naam", disk`
+
 ---
 
 ## A
@@ -79,12 +84,22 @@ Sequentiële bestanden. Records worden achter elkaar geschreven.
 **Voorbeelden:**
 - `ABS(-5)` &rarr; `5`
 
+### ACS
+**Type:** Numerieke Functie
+**Syntax:** `ACS(num)`
+**Beschrijving:** Retourneert de arc cosinus van `num` (in radialen).
+
 ### ASC
 **Type:** String Functie  
 **Syntax:** `ASC(string)`  
 **Beschrijving:** Retourneert de decimale ASCII-waarde van het **eerste** karakter van `string`.  
 **Voorbeelden:**
 - `ASC("A")` &rarr; `65`
+
+### ASN
+**Type:** Numerieke Functie
+**Syntax:** `ASN(num)`
+**Beschrijving:** Retourneert de arc sinus van `num` (in radialen).
 
 ### ATH
 **Type:** Conversie Functie  
@@ -634,6 +649,25 @@ Gerefereerd via `IOL=line` optie in I/O statement.
 **Type:** Numerieke Functie  
 **Syntax:** `TAN(num)`  
 **Beschrijving:** Tangens.
+
+### TEXT
+**Type:** File Directive
+**Syntax:** `TEXT "bestandsnaam" [,disk]`
+**Beschrijving:** Creëert een character-oriented flat file ("TEXT" file). Deze bestanden zijn structureel compatibel met systeem tekstbestanden.
+
+**Gebruik:**
+- **Aanmaken:** `TEXT "naam", disk` (Disk nummer is optioneel, standaard 0). Het bestand wordt aangemaakt als een leeg bestand.
+- **Openen:** Gebruik de `OPT="TEXT"` optie in het `OPEN` commando:  
+  `OPEN (1, OPT="TEXT") "naam"`
+- **Lezen (READ):**
+  - Toegang is gebaseerd op byte-offset (`IND=`) en lengte (`SIZ=`).
+  - `READ (1, IND=0, SIZ=10) A$` leest 10 bytes vanaf het begin.
+  - Als `SIZ` wordt weggelaten, leest het tot de volgende separator ($0A, $0D) of EOF.
+  - `READ RECORD` negeert separators en leest tot `SIZ` of EOF.
+- **Schrijven (WRITE):**
+  - `WRITE (1, IND=...) "Data"` schrijft data op de opgegeven positie.
+  - Een line terminator (standaard `\n`) wordt automatisch toegevoegd na elke variabele.
+  - `WRITE RECORD` schrijft de data exact zoals opgegeven (zonder extra terminators).
 
 ---
 

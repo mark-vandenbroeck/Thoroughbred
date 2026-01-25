@@ -40,13 +40,13 @@ class Lexer:
             'IND', 'KEY', 'ERASE', 'SELECT', 'EXTRACT', 'EXTRACTRECORD', 'ERR', 'DOM',
             'DIM', 'CALL', 'ENTER', 'EXIT', 'ALL', 'POS',
             'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
-            'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
+            'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 'ACS', 'ASN',
             'MOD', 'ROUND', 'FPT', 'IPT', 'EXECUTE', 'REMOVE',
             'AND', 'OR', 'NOT', 'XOR',
             'SETTRACE', 'ENDTRACE', 'SET', 'TRACEMODE', 'STOP', 'DTN',
             'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY', 'IOLIST', 'IOL',
                                                                         'SETERR', 'RETRY', 'FIND', 'READRECORD', 'FINDRECORD', 'RECORD', 'BIN', 'DEC', 'FILL', 'RUN', 'SDX', 'SETESC',
-            'SYSTEM'
+            'SYSTEM', 'TEXT'
         }
 
     def tokenize(self, text):

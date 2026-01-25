@@ -293,6 +293,13 @@ PATH = ., ./programs, ./tests</code></pre>
             <li><strong>Create:</strong> <code>SERIAL "name", rec_len, disk</code></li>
         </ul>
 
+        <h3>TEXT</h3>
+        <p>Character-oriented flat files compatible with system text files.</p>
+        <ul>
+            <li>No record structure. Byte-level access.</li>
+            <li><strong>Create:</strong> <code>TEXT "name", disk</code></li>
+        </ul>
+
         <h2 id="a">A</h2>
 
         <h3>ABS</h3>
@@ -301,11 +308,21 @@ PATH = ., ./programs, ./tests</code></pre>
         <p>Returns the absolute value of the number <code>num</code>.</p>
         <p><strong>Examples:</strong> <code>ABS(-5)</code> &rarr; <code>5</code></p>
 
+        <h3>ACS</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">ACS(num)</div>
+        <p>Returns the arc cosine of <code>num</code> (in radians).</p>
+
         <h3>ASC</h3>
         <span class="cmd-type">String Function</span>
         <div class="syntax">ASC(string)</div>
         <p>Returns the decimal ASCII value of the <strong>first</strong> character of <code>string</code>.</p>
         <p><strong>Examples:</strong> <code>ASC("A")</code> &rarr; <code>65</code></p>
+
+        <h3>ASN</h3>
+        <span class="cmd-type">Numeric Function</span>
+        <div class="syntax">ASN(num)</div>
+        <p>Returns the arc sine of <code>num</code> (in radians).</p>
 
         <h3>ATH</h3>
         <span class="cmd-type">Conversion Function</span>
@@ -796,6 +813,41 @@ PATH = ., ./programs, ./tests</code></pre>
                     <li><strong>Without argument:</strong> Drops to shell. Type <code>exit</code> to return.</li>
                     <li><strong>With argument:</strong> Executes command and returns automatically.</li>
                 </ul>
+
+                </ul>
+
+                <h2 id="t">T</h2>
+
+                <h3>TAN</h3>
+                <span class="cmd-type">Numeric Function</span>
+                <div class="syntax">TAN(num)</div>
+                <p>Returns the tangent of <code>num</code> (in radians).</p>
+
+                <h3>TEXT</h3>
+                <span class="cmd-type">File Directive</span>
+                <div class="syntax">TEXT "filename" [,disk]</div>
+                <p>Creates a character-oriented flat system text file.</p>
+                <div class="usage-block">
+                    <strong>Usage:</strong>
+                    <ul>
+                        <li><strong>Create:</strong> <code>TEXT "name", disk</code> (Disk optional, default 0). Creates
+                            empty file.</li>
+                        <li><strong>Open:</strong> Use <code>OPT="TEXT"</code>:
+                            <br><code>OPEN (1, OPT="TEXT") "name"</code></li>
+                        <li><strong>READ:</strong> Access via <code>IND=</code> (offset) and <code>SIZ=</code> (length).
+                            <ul>
+                                <li>Reads until <code>SIZ</code> or delimiter ($0A, $0D).</li>
+                                <li><code>READ RECORD</code> ignores delimiters (reads until SIZ/EOF).</li>
+                            </ul>
+                        </li>
+                        <li><strong>WRITE:</strong> Writes at <code>IND=</code> offset.
+                            <ul>
+                                <li>Appends line terminator after each variable.</li>
+                                <li><code>WRITE RECORD</code> writes raw data.</li>
+                            </ul>
+                        </li>
+                    </ul>
+                </div>
 
                 <h2 id="u">U</h2>
 

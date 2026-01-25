@@ -356,7 +356,7 @@ class ThoroughbredBasicInterpreter:
         
         # 1b. Handle built-in functions
         builtins = {'LEN', 'STR$', 'VAL', 'ASC', 'CHR$', 'UCS', 'LCS', 'CVS',
-                    'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
+                    'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 'ACS', 'ASN',
                     'MOD', 'ROUND', 'FPT', 'IPT',
                     'AND', 'OR', 'NOT', 'XOR', 'DTN',
                                         'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY', 'BIN', 'DEC', 'FILL', 'SDX'}
@@ -575,6 +575,8 @@ class ThoroughbredBasicInterpreter:
                 elif func == 'COS': return math.cos(n1)
                 elif func == 'TAN': return math.tan(n1)
                 elif func == 'ATN': return math.atan(n1)
+                elif func == 'ACS': return math.acos(n1)
+                elif func == 'ASN': return math.asin(n1)
                 elif func == 'EXP': return math.exp(n1)
                 elif func == 'LOG': return math.log(n1) if n1 > 0 else 0
                 elif func == 'RND': return random.random() # RND(X) often uses X to seed or determine range, but simple RND() 0-1 is standard-ish fallback
@@ -1648,12 +1650,12 @@ class ThoroughbredBasicInterpreter:
                 del self.for_loops[var_name]
                 self.current_line_idx += 1
 
-        elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'SELECT', 'REMOVE', 'FIND', 'FINDRECORD', 'READRECORD'):
+        elif cmd in ('OPEN', 'CLOSE', 'WRITE', 'READ', 'EXTRACT', 'EXTRACTRECORD', 'ERASE', 'DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'TEXT', 'SELECT', 'REMOVE', 'FIND', 'FINDRECORD', 'READRECORD'):
             # Shared parsing for file commands
             options = {}
             idx = 0
 
-            if cmd in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'):
+            if cmd in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'TEXT'):
                 # Creation commands: DIRECT "filename", arg1, arg2 [, ERR=line]
                 filename = tokens[1].value[1:-1]
                 idx = 2
@@ -1677,6 +1679,9 @@ class ThoroughbredBasicInterpreter:
                         if len(args) > 0: rec_len = args[0]
                         if len(args) > 1: disk_num = args[1]
                         # args[2] sector ignored
+                    elif cmd == 'TEXT':
+                        if len(args) > 0: disk_num = args[0]
+                        # args[1] sector ignored
                     else:
                         if len(args) > 0: key_len = args[0]
                         if len(args) > 1: rec_len = args[1]
@@ -1753,7 +1758,7 @@ class ThoroughbredBasicInterpreter:
                         if kw == 'IOL': iol_line = val
                         else: options[kw] = val
                     # Check for options like DIRECT, SORT, etc (single tokens)
-                    elif len(r_arg) == 1 and r_arg[0].type in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT'):
+                    elif len(r_arg) == 1 and r_arg[0].type in ('DIRECT', 'INDEXED', 'SERIAL', 'SORT', 'TEXT'):
                         file_type = r_arg[0].type
                     elif len(r_arg) == 1 and r_arg[0].type == 'OP' and r_arg[0].value == '*':
                         args.append({'is_skip': True}) # SKIP
@@ -1806,14 +1811,14 @@ class ThoroughbredBasicInterpreter:
                     jumped = False
                     
                     if cmd == 'OPEN':
-                        file_type = file_type or options.get('type') # Helper?
-                        rec_len = rec_len or options.get('rec_len') # Logic?
-                        # Fallback for old parsing: KEY=10 -> rec_len?
-                        # New parser puts IND/KEY in options.
-                        # basic.py logic: "elif t.type in ('IND', 'KEY'): idx+=2; rec_len=..."
-                        # We need to respect that usage if we see IND/KEY but meant rec_len?
-                        # Actually, in OPEN, KEY/IND usually define key length.
-                        # Let's use whatever we found.
+                        file_type = file_type or options.get('type')
+                        if options.get('OPT') == 'TEXT': file_type = 'TEXT'
+                        if options.get('OPT') == 'TEXT': file_type = 'TEXT'
+                        rec_len = rec_len or options.get('rec_len')
+                        
+                        # Extract filename from args if not set (OPEN command)
+                        if not filename and args and args[0].get('value'):
+                            filename = str(args[0]['value'])
                         
                         self.file_manager.open(channel, filename, file_type, rec_len)
                         
@@ -1828,22 +1833,44 @@ class ThoroughbredBasicInterpreter:
                         ind = options.get('IND')
                         
                         if cmd == 'WRITE':
-                             values = []
-                             for a in args:
-                                 if a.get('is_skip'): continue
-                                 if a.get('value') is not None: values.append(a['value'])
-                                 # What if it was a variable we didn't eval?
-                                 elif a.get('var_name'):
-                                     values.append(self.variables.get(a['var_name'], ""))
-                             
-                             # Check DOM
-                             if key is not None or ind is not None:
-                                 existing = self.file_manager.read(channel, key=key, ind=ind)
-                                 if existing is not None and 'DOM' in options:
-                                      if self._handle_file_error('DOM', options): jumped = True
-                             
-                             if not jumped:
-                                 self.file_manager.write(channel, key=key, ind=ind, values=values)
+                              values = []
+                              
+                              # Special handling for TEXT files: format args with terminators
+                              is_text = False
+                              try:
+                                  if self.file_manager.channels[channel]['type'] == 'TEXT':
+                                      is_text = True
+                              except: pass
+
+                              for a in args:
+                                  if a.get('is_skip'): continue
+                                  v = None
+                                  if a.get('value') is not None: v = a['value']
+                                  elif a.get('var_name'): v = self.variables.get(a['var_name'], "")
+                                  
+                                  if v is not None:
+                                      values.append(v)
+
+                              # Check DOM
+                              if key is not None or ind is not None:
+                                  existing = self.file_manager.read(channel, key=key, ind=ind)
+                                  if existing is not None and 'DOM' in options:
+                                       if self._handle_file_error('DOM', options): jumped = True
+                              
+                              if not jumped:
+                                  if is_text:
+                                      # WRITE: Add delimiter after each variable
+                                      # WRITE RECORD: Join variables? Manual says "writes the named variable... for the number of bytes contained"
+                                      # "A WRITE RECORD directive simply writes... RESULTANT STRING"
+                                      # "A WRITE ... contains a line terminator ... after EACH named variable"
+                                      delim = "\n"  # using \n as standard Unix terminator ($0A)
+                                      if 'RECORD' in cmd:
+                                          final_str = "".join(map(str, values))
+                                      else:
+                                          final_str = "".join([str(x) + delim for x in values])
+                                      self.file_manager.write(channel, key=key, ind=ind, values=final_str)
+                                  else:
+                                      self.file_manager.write(channel, key=key, ind=ind, values=values)
                         
                         elif cmd in ('READ', 'EXTRACT', 'EXTRACTRECORD', 'FIND', 'READRECORD', 'FINDRECORD'):
                              # READ / FIND / RECORD
@@ -1855,6 +1882,58 @@ class ThoroughbredBasicInterpreter:
                                  val = self.file_manager.extract(channel, key=key, ind=ind)
                              else:
                                  val = self.file_manager.read(channel, key=key, ind=ind, update_ptr_on_error=update_ptr)
+
+                             # TEXT File Logic
+                             if val is not None and self.file_manager.channels[channel]['type'] == 'TEXT':
+                                 # val is the rest of the string starting from IND
+                                 # SIZ Logic
+                                 siz_limit = len(val)
+                                 if options.get('SIZ'):
+                                     try: siz_limit = int(options['SIZ'])
+                                     except: pass
+                                 
+                                 limit = min(len(val), siz_limit)
+                                 consumed = 0
+                                 
+                                 if 'RECORD' not in cmd:
+                                     # READ: Stop at delimiter or SIZ
+                                     # Delimiters: 0A, 0D, 8A
+                                     # We search in val[:limit]
+                                     chunk = val[:limit]
+                                     # Find first terminator
+                                     # Regex for LF, CR, $8A (\x8a)
+                                     match = re.search(r'[\n\r\x8a]', chunk)
+                                     if match:
+                                         end_idx = match.start()
+                                         # Consume terminator(s)
+                                         # Check for CRLF/LFCR?
+                                         # Simple: consume match char. If followed by other...
+                                         # Manual: "combination of one line feed and one carriage return"
+                                         stop_char = chunk[match.start()]
+                                         consumed = match.end()
+                                         
+                                         # Look ahead for pair
+                                         if consumed < len(val):
+                                             next_char = val[consumed]
+                                             if (stop_char == '\n' and next_char == '\r') or (stop_char == '\r' and next_char == '\n'):
+                                                 consumed += 1
+                                         
+                                         # Returned data does NOT contain terminator
+                                         val = [chunk[:end_idx]]
+                                     else:
+                                         # No terminator found within limit (SIZ or EOF)
+                                         # If SIZ was limiting, we stop there.
+                                         val = [chunk]
+                                         consumed = limit
+                                 else:
+                                     # READ RECORD: Terminated by EOF or SIZ
+                                     chunk = val[:limit]
+                                     val = [chunk] # Return as list for assignment logic
+                                     consumed = limit
+                                 
+                                 # Update Channel Position Manually (since file_manager doesn't know how much we consumed)
+                                 if ind is None:
+                                     self.file_manager.channels[channel]['pos'] += consumed
 
                              # Special case: FIND on SORT file does not transfer data
                              if cmd in ('FIND', 'FINDRECORD'):

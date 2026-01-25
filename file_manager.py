@@ -83,6 +83,29 @@ class FileManager:
 
     def create(self, filename, file_type, rec_len=None, key_len=None, disk_num=None):
         path = self._get_path(filename, disk_num=disk_num, search=False)
+        
+        if file_type == 'TEXT':
+             # Create empty raw text file
+             # Ensure directory exists
+             os.makedirs(os.path.dirname(path), exist_ok=True)
+             # Remove .json extension for TEXT files or keep common naming?
+             # Implementation plan said "create raw text file".
+             # _get_path appends .json. If I use .txt or no extension, I need to adjust logic.
+             # Easier to use a different extension for TEXT or just no extension?
+             # For consistency with _get_path, let's strip .json suffix if desired, or just use it.
+             # User manual says "flat file".
+             # Let's use .txt for clarity if type is TEXT, or just override path?
+             # Re-using _get_path which adds .json is simplest for path resolution but weird for "TEXT" file.
+             # However, FileManager logic assumes .json for everything else.
+             # Let's hack _get_path or just use `path` (which has .json) but write raw text.
+             # It acts as "system text file".
+             # Let's strip .json for TEXT files to be "compatible with system text files".
+             if path.endswith('.json'): path = path[:-5]
+             
+             with open(path, 'w') as f:
+                 f.write("")
+             return
+
         # Use a structure that includes metadata
         file_content = {
             "_metadata": {
@@ -97,10 +120,45 @@ class FileManager:
 
     def open(self, channel, filename, file_type=None, rec_len=None):
         path = self._get_path(filename, search=True) # Search disks
-        if not os.path.exists(path):
+        
+        # Check if we should treat as TEXT (explicit opt or existing file check?)
+        # Implementation Plan: "If file_type == 'TEXT' (passed from OPEN directive)"
+        # Note: _get_path returns path with .json extension.
+        # If we created it without .json, we need to find it differently.
+        # Update _get_path logic? Or search trial names.
+        
+        real_path = path
+        is_text = (file_type == 'TEXT')
+        
+        if is_text:
+             # Try without .json
+             if path.endswith('.json'):
+                 base_path = path[:-5]
+                 if os.path.exists(base_path):
+                     real_path = base_path
+                 elif not os.path.exists(path):
+                     # If neither exists
+                     raise FileNotFoundError(f"File not found: {filename}")
+        
+        if not os.path.exists(real_path):
             raise FileNotFoundError(f"File not found: {filename}")
         
-        with open(path, 'r') as f:
+        if is_text:
+            with open(real_path, 'r', encoding='latin-1') as f: # binary-safeish string
+                data = f.read()
+            
+            self.channels[channel] = {
+                'type': 'TEXT',
+                'filename': filename,
+                'path': real_path,
+                'data': data,
+                'metadata': {},
+                'pos': 0,
+                'last_key': None
+            }
+            return
+
+        with open(real_path, 'r') as f:
             try:
                 file_content = json.load(f)
             except json.JSONDecodeError:
@@ -134,6 +192,13 @@ class FileManager:
         if channel in self.channels:
             chan = self.channels[channel]
             path = chan.get('path') or self._get_path(chan['filename'])
+            
+            if chan['type'] == 'TEXT':
+                with open(path, 'w', encoding='latin-1') as f:
+                    f.write(chan['data'])
+                del self.channels[channel]
+                return
+
             file_content = {
                 "_metadata": chan['metadata'],
                 "records": chan['data']
@@ -160,6 +225,27 @@ class FileManager:
             idx = str(len(data))
             data[idx] = values
             chan['last_key'] = idx
+        elif chan['type'] == 'TEXT':
+            # values should be a string to write
+            # ind is valid. If None, use current pos?
+            # "A WRITE RECORD directive simply writes ... starting at the current position or the position specified by the IND="
+            vals = str(values)
+            start = ind if ind is not None else chan.get('pos', 0)
+            
+            # Extend string if needed
+            current_len = len(data)
+            if start > current_len:
+                data += "\0" * (start - current_len)
+            
+            # Overwrite logic
+            # data is string. Strings are immutable in Python.
+            pre = data[:start]
+            post = data[start+len(vals):]
+            chan['data'] = pre + vals + post
+            
+            # Update position (usually after write)
+            chan['pos'] = start + len(vals)
+            
         else:
             raise RuntimeError(f"Invalid write operation on {chan['type']} file")
 
@@ -188,12 +274,50 @@ class FileManager:
                 if update_ptr_on_error: chan['last_key'] = s_key
                 return None
                 
-        elif chan['type'] == 'SERIAL':
-            val = data.get(str(chan['pos']))
-            chan['last_key'] = str(chan['pos'])
             if val is not None and advance_pointer:
                 chan['pos'] += 1
             return val
+            
+        elif chan['type'] == 'TEXT':
+             # TEXT file read
+             # Need start (ind) and length (siz)
+             # "The actual READ is terminated by an End of File... or SIZ... or separator"
+             # If SIZ is not provided, max string size.
+             # Logic is complex, handled partly here.
+             # Return raw string from position?
+             # Let's implement a direct 'read_chunk' logic or handle it via returned object?
+             # Interpreter calls read().
+             # interpreter.py expects read() to return a value.
+             # For READ (SERIAL/INDEXED), it returns a record (list/dict/string).
+             # For TEXT, we return a string Chunk?
+             # We need 'siz' parameter here or handle it in interpreter.
+             # The arguments to read() are key/ind.
+             # We should probably extend read() to accept 'siz' or handle slicing in interpreter if read() returns full tail?
+             # Returning full tail is inefficient.
+             # Let's rely on 'ind' being passed. If 'siz' is needed, maybe passed as key? Or a new arg?
+             # For now, let's return the whole string from 'ind' and let Interpreter slice/scan it?
+             # Or better: Add 'siz' arg to read().
+             start = ind if ind is not None else chan.get('pos', 0)
+             
+             # If siz not passed, we don't know how much to read.
+             # But existing read() signature doesn't have siz.
+             # Let's return the rest of the string for now, and let interpreter process it.
+             # Or we can update read signature later.
+             # Wait, I can access 'data' directly in interpreter if I need complex logic, 
+             # but better to abstract it.
+             # I'll return the string from start.
+             
+             # Interpreter logic for TEXT file will likely need to scan for delimiters.
+             # So giving subsequent string is appropriate.
+             if start >= len(data):
+                 return None # EOF
+             
+             res = data[start:]
+             # Note: pos update happens in interpreter based on consumption?
+             # TEXT file pos tracking is tricky if we scan.
+             # We'll leave pos update to caller or default to not advancing here implies caller manages it?
+             # For now, return remaining data.
+             return res
         
         return None
 

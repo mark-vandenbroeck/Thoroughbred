@@ -1,0 +1,9 @@
+Skipping line without line number: "
+Skipping line without line number: "
+Skipping line without line number: "
+Starting execution...
+0
+Signalling...
+0
+0
+Execution finished.
