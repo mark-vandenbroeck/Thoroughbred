@@ -108,8 +108,9 @@ class ThoroughbredBasicInterpreter:
         if tokens:
             self._dispatch_statement(tokens)
 
-    def load_program(self, source_code):
-        self.reset_state()
+    def load_program(self, source_code, reset=True):
+        if reset:
+            self.reset_state()
         self.program = {}
         self.program_source = {} # line_number -> raw source string
         
@@ -317,7 +318,7 @@ class ThoroughbredBasicInterpreter:
                     'ABS', 'INT', 'SQR', 'SIN', 'COS', 'TAN', 'ATN', 'LOG', 'EXP', 'RND', 'SGN', 
                     'MOD', 'ROUND', 'FPT', 'IPT',
                     'AND', 'OR', 'NOT', 'XOR', 'DTN',
-                    'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY', 'BIN', 'DEC'}
+                                        'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY', 'BIN', 'DEC', 'FILL', 'SDX'}
 
         # KEY function logic
         if tokens[0].type == 'KEY' and len(tokens) > 2 and tokens[1].type == 'LPAREN':
@@ -401,6 +402,21 @@ class ThoroughbredBasicInterpreter:
                 elif func == 'CHR$': return chr(int(val1))
                 elif func == 'UCS': return str(val1).upper()
                 elif func == 'LCS': return str(val1).lower()
+                elif func == 'FILL':
+                    count = int(val1)
+                    char = str(eval_arg(1) or "\0")
+                    if len(char) > 0:
+                        # If char is a digit, it might be an ASCII code?
+                        # Thoroughbred FILL(10, "A") fills with A.
+                        # FILL(10, 0) fills with CHR(0).
+                        # Let's try to handle both.
+                        try:
+                            # If it's a numeric value passed as a string/float
+                            c_int = int(float(char))
+                            return chr(c_int & 0xFF) * count
+                        except:
+                            return char[0] * count
+                    return "\0" * count
                 elif func == 'CVS':
                     s = str(val1)
                     code = int(eval_arg(1) or 0)
@@ -409,6 +425,75 @@ class ThoroughbredBasicInterpreter:
                     if code & 16: s = s.upper()
                     if code & 32: s = s.lower()
                     return s
+
+                elif func == 'SDX':
+                    try:
+                        # Handle ERR/ERC options
+                        err_line = None
+                        for i in range(1, len(args)):
+                            arg_toks = args[i]
+                            if len(arg_toks) >= 3 and arg_toks[1].type == 'ASSIGN' and arg_toks[1].value == '=':
+                                if arg_toks[0].type == 'ERR':
+                                    err_line = int(self.evaluate_expression(arg_toks[2:]))
+
+                        s = str(val1).upper()
+                        if not s: raise ValueError("Empty string for SDX")
+
+                        # Soundex mapping
+                        mapping = {
+                            'B': '1', 'F': '1', 'P': '1', 'V': '1',
+                            'C': '2', 'G': '2', 'J': '2', 'K': '2', 'Q': '2', 'S': '2', 'X': '2', 'Z': '2',
+                            'D': '3', 'T': '3',
+                            'L': '4',
+                            'M': '5', 'N': '5',
+                            'R': '6'
+                        }
+                        
+                        # 1. Find the first alphanumeric character
+                        first_char = ""
+                        for char in s:
+                            if char.isalnum():
+                                first_char = char
+                                break
+                        if not first_char: return "    "
+                        
+                        # 2. Build the codes
+                        res = [first_char]
+                        prev_code = mapping.get(first_char, "0")
+                        
+                        # Skip characters until we have 3 digits
+                        for char in s[s.find(first_char)+1:]:
+                            if len(res) >= 4: break
+                            
+                            code = mapping.get(char)
+                            if code:
+                                if code != prev_code:
+                                    res.append(code)
+                                    prev_code = code
+                                else:
+                                    # Same code as previous literal character?
+                                    # Rule: If two letters with same code are adjacent, only first is retained.
+                                    # If they are separated by A,E,I,O,U,Y, both are used.
+                                    # If they are separated by H,W, only first is used.
+                                    # This is complex. Standard Soundex usually ignores H/W separation effect.
+                                    # Let's follow the standard rule where adjacency means "consecutive characters in source".
+                                    pass 
+                            elif char in "HW":
+                                # H and W are ignored but prevent adjacency merge? 
+                                # No, they are usually skipped entirely in modern Soundex.
+                                # But some versions say they DON'T separate.
+                                pass
+                            else:
+                                # Vowels/Others: reset prev_code so next same-code letter is included
+                                prev_code = "0"
+                        
+                        # Padding
+                        while len(res) < 4: res.append("0")
+                        return "".join(res[:4])
+                        
+                    except Exception as e:
+                        if 'err_line' in locals() and err_line: raise BasicErrorJump(err_line)
+                        raise e
 
                 # Bitwise String Functions
                 elif func in ('AND', 'OR', 'XOR', 'NOT'):
@@ -1353,7 +1438,13 @@ class ThoroughbredBasicInterpreter:
                     except:
                         self.current_line_idx += 1
                 else:
-                    self.current_line_idx += 1
+                    # Execute as statement
+                    self._dispatch_statement(target_tokens)
+                    # _dispatch_statement incremented current_line_idx, but IF logic 
+                    # also increments it later? Wait, _dispatch_statement increments 
+                    # except for GOTO.
+                    # Actually, we should NOT increment again if we dispatched.
+                    return 
             else:
                 self.current_line_idx += 1
 
@@ -1398,23 +1489,59 @@ class ThoroughbredBasicInterpreter:
                             current_idx = paren_end + 1
                 except Exception: pass
 
-            # 2. Process mnemonics and collect prompt parts
-            target_vars = []
-            expr_tokens = []
+        elif cmd == 'INPUT':
+            # Robust INPUT parsing: support mnemonics, @(c,r), prompts, and MULTIPLE variables.
+            # Syntax: INPUT [@(c,r),] [mnemonic,] ["Prompt",] [vars...]
+            current_idx = 1
             
-            i = current_idx
-            while i < len(tokens):
-                t = tokens[i]
-                if t.type == 'MNEMONIC':
-                    # Handle Mnemonic
-                    # Flush current prompt if any
-                    if expr_tokens:
-                        prompt_parts.append(str(self.evaluate_expression(expr_tokens)))
-                        expr_tokens = []
-                        
-                    mnemonic = t.value[1:-1]
+            # 1. Cursor addressing at strict start
+            if current_idx < len(tokens) and tokens[current_idx].type == 'AT':
+                try:
+                    if tokens[current_idx+1].type == 'LPAREN':
+                        match = find_matching(current_idx+1, 'LPAREN', 'RPAREN')
+                        if match != -1:
+                            inside = tokens[current_idx+2:match]
+                            parts = []
+                            curr = []
+                            d = 0
+                            for t in inside:
+                                if t.type in ('LPAREN', 'LBRACKET'): d+=1
+                                elif t.type in ('RPAREN', 'RBRACKET'): d-=1
+                                if d==0 and t.type == 'COMMA':
+                                    parts.append(curr); curr = []
+                                else: curr.append(t)
+                            if curr: parts.append(curr)
+                            if len(parts) >= 2:
+                                col = int(self.evaluate_expression(parts[0]))
+                                row = int(self.evaluate_expression(parts[1]))
+                                if self.io_handler: self.io_handler.move_cursor(col, row)
+                            current_idx = match + 1
+                except: pass
+
+            # 2. Split remainder by COMMA
+            remaining = tokens[current_idx:]
+            args = []
+            curr = []
+            d = 0
+            for t in remaining:
+                if t.type in ('LPAREN', 'LBRACKET'): d += 1
+                elif t.type in ('RPAREN', 'RBRACKET'): d -= 1
+                if d == 0 and t.type == 'COMMA':
+                    if curr: args.append(curr)
+                    curr = []
+                else:
+                    curr.append(t)
+            if curr: args.append(curr)
+
+            prompt_parts = []
+            target_vars = []
+
+            for arg_toks in args:
+                if not arg_toks: continue
+                t0 = arg_toks[0]
+                if t0.type == 'MNEMONIC' and len(arg_toks) == 1:
+                    mnemonic = t0.value[1:-1]
                     if self.io_handler:
-                        # Flush existing prompt parts to terminal
                         if prompt_parts:
                             self.io_handler.write(" ".join(prompt_parts))
                             prompt_parts = []
@@ -1431,59 +1558,29 @@ class ThoroughbredBasicInterpreter:
                         elif mnemonic == 'CE': self.io_handler.clear_eos()
                         elif mnemonic == 'CL': self.io_handler.clear_eol()
                         elif mnemonic == 'LD': self.io_handler.delete_line()
-                elif t.type == 'COMMA':
-                    if expr_tokens:
-                        # If the expression looks like a variable, it might be the target
-                        # But wait, Thoroughbred INPUT usually has the prompt last or first?
-                        # Standard: INPUT "Prompt", VAR
-                        # Let's assume anything that is NOT a string/expression before the last comma is a prompt part.
-                        # Actually, let's just collect all expressions.
-                        prompt_parts.append(str(self.evaluate_expression(expr_tokens)))
-                        expr_tokens = []
-                elif t.type in ('ID_NUM', 'ID_STR'):
-                    # PEEK AHEAD: is this the LAST token? or followed only by commas?
-                    # If it's a variable at the end, it's the target.
-                    is_last = True
-                    for j in range(i+1, len(tokens)):
-                        if tokens[j].type not in ('COMMA', 'SEMICOLON'):
-                            is_last = False
-                            break
-                    
-                    if is_last:
-                        target_vars.append(t)
-                    else:
-                        expr_tokens.append(t)
+                elif len(arg_toks) == 1 and arg_toks[0].type in ('ID_NUM', 'ID_STR'):
+                    target_vars.append(arg_toks[0])
                 else:
-                    expr_tokens.append(t)
-                i += 1
-            
-            if expr_tokens:
-                # Last expression? If target_vars is empty, the last expression must be the target variable if it is one.
-                # If we have multiple vars: INPUT A, B, C
-                if not target_vars and expr_tokens[-1].type in ('ID_NUM', 'ID_STR'):
-                    target_vars.append(expr_tokens.pop())
-                
-                if expr_tokens: # Remaining are prompt
-                     prompt_parts.append(str(self.evaluate_expression(expr_tokens)))
+                    val = self.evaluate_expression(arg_toks)
+                    prompt_parts.append(str(val))
 
             final_prompt = " ".join(prompt_parts)
             
-            # 3. Perform input
-            if self.io_handler:
-                user_input = self.io_handler.input(final_prompt)
-            else:
-                user_input = input(final_prompt)
-
-            # 4. Assign value
-            if target_vars:
-                var_token = target_vars[0] # Single input for now
+            for i, var_token in enumerate(target_vars):
+                p = final_prompt if i == 0 else ""
+                if self.io_handler:
+                    user_input = self.io_handler.input(p)
+                else:
+                    user_input = input(p)
+                
                 if var_token.type == 'ID_NUM':
                     try:
                         self.variables[var_token.value] = float(user_input) if '.' in user_input else int(user_input)
-                    except ValueError:
+                    except:
                         self.variables[var_token.value] = 0
                 else:
                     self.variables[var_token.value] = user_input
+                final_prompt = "" 
             
             self.current_line_idx += 1
 
@@ -2088,7 +2185,92 @@ class ThoroughbredBasicInterpreter:
              self.trace_delay = t_delay
              self.current_line_idx += 1
 
+        elif cmd == 'RUN':
+            # RUN [program-name] [,ERR=line-ref|,ERC=error-code]
+            idx = 1
+            prog_tokens = []
+            while idx < len(tokens) and tokens[idx].type != 'COMMA':
+                prog_tokens.append(tokens[idx])
+                idx += 1
+            
+            prog_name = None
+            if prog_tokens:
+                prog_name = self.evaluate_expression(prog_tokens)
+            
+            options = {}
+            if idx < len(tokens) and tokens[idx].type == 'COMMA':
+                idx += 1
+                while idx < len(tokens):
+                    if tokens[idx].type == 'COMMA': idx += 1; continue
+                    if idx + 2 < len(tokens) and tokens[idx+1].value == '=':
+                        opt_name = tokens[idx].type
+                        opt_val = self.evaluate_expression(tokens[idx+2:])
+                        options[opt_name] = opt_val
+                        # Skip until next comma or end
+                        while idx < len(tokens) and tokens[idx].type != 'COMMA': idx += 1
+                    else:
+                        idx += 1
+
+            if prog_name:
+                # Search for program
+                resolved_path = self.file_manager.find_program(prog_name)
+                if not resolved_path:
+                    if not self._handle_file_error('ERR', options):
+                        raise RuntimeError(f"ERR=12: Program not found: {prog_name}")
+                    return
+
+                # Load program
+                try:
+                    with open(resolved_path, 'r') as f:
+                        source = f.read()
+                    
+                    # RESET sequence
+                    # 1. Clear context stack (except main) and return stack
+                    while len(self.context_stack) > 1:
+                        self.context_stack.pop()
+                    
+                    # 2. Reset the main context (preserve variables)
+                    ctx = self._curr()
+                    ctx['gosub_stack'] = []
+                    ctx['for_loops'] = {}
+                    
+                    # 3. Reset error/precision state
+                    self.seterr_line = 0
+                    self.seterr_active = False
+                    self.seterr_saved = 0
+                    # PRECISION = 2 (standard fallback)
+                    
+                    # 4. Parse and load the new program into current context
+                    temp_int = ThoroughbredBasicInterpreter()
+                    temp_int.load_program(source, reset=False) # Don't reset temp_int's internal context
+                    
+                    ctx['program'] = temp_int.program
+                    ctx['line_numbers'] = temp_int.line_numbers
+                    ctx['program_source'] = temp_int.program_source
+                    ctx['current_line_idx'] = 0
+                    
+                    # Execution commences at first line
+                    return # execute() will pick up the new ctx
+                    
+                except Exception as e:
+                    if not self._handle_file_error('ERR', options):
+                        # Attempting to load a non-basic file might cause errors
+                        # TB returns ERR=17 if it's not a program file
+                        if isinstance(e, RuntimeError) and "ERR=" not in str(e):
+                            raise RuntimeError(f"ERR=17: Invalid program file: {e}")
+                        raise e
+                    return
+            else:
+                # RUN without program name:
+                # Commences execution at current pointer.
+                # If we are in dispatch, we just return and it continues?
+                # This usually means starting from the beginning of the CURRENT loaded program.
+                if self.line_numbers:
+                    self.current_line_idx = 0
+                    return # DO NOT increment here, so next iter is also 0
+
         elif cmd == 'STOP':
+
             self.trace_enabled = False
             # print("STOP") # Optional
             if len(self.context_stack) > 1: self.context_stack.pop(); self.current_line_idx += 1; return # STOP in sub? usually HALT.

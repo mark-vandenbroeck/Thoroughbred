@@ -1,0 +1,41 @@
+0010 REM Course Manager
+0020 PRINT 'CS', @(25,2), 'BR', " KURSUSSEN BEHEER ", 'ER'
+0030 PRINT @(10,5), "1. Kursus Toevoegen"
+0040 PRINT @(10,7), "2. Kursus Zoeken"
+0050 PRINT @(10,9), "0. Terug naar Menu"
+0060 INPUT @(10,12), "Keuze: ", K
+0070 IF K = 0 THEN EXIT
+0080 IF K = 1 THEN GOTO 0100
+0090 IF K = 2 THEN GOTO 0500
+0095 GOTO 0020
+0100 REM Kursus Toevoegen
+0110 PRINT 'CS', @(25,2), "KURSUS TOEVOEGEN"
+0120 INPUT @(10,5), "Kursus ID (6 tekens): ", ID$
+0130 IF LEN(ID$) <> 6 THEN GOTO 0120
+0140 INPUT @(10,7), "Naam: ", KN$
+0150 INPUT @(10,8), "Prijs: ", PR$
+0160 INPUT @(10,9), "Max Leden: ", MX$
+0170 REM Data inpakken
+0180 LET REC$ = KN$ + FILL(30-LEN(KN$)) + PR$ + FILL(10-LEN(PR$)) + MX$ + FILL(4-LEN(MX$))
+0190 OPEN (1) "COURSES.DAT"
+0200 WRITE (1, KEY=ID$) REC$
+0210 CLOSE (1)
+0220 PRINT @(10,15), "Kursus opgeslagen!"
+0230 INPUT @(10,17), "Druk op Enter...", D$
+0240 GOTO 0020
+0500 REM Kursus Zoeken
+0510 PRINT 'CS', @(25,2), "KURSUS ZOEKEN"
+0520 INPUT @(10,5), "Kursus ID: ", ID$
+0530 OPEN (1) "COURSES.DAT", ERR=0600
+0540 READ (1, KEY=ID$, ERR=0600) REC$
+0550 CLOSE (1)
+0560 LET KN$ = REC$(1,30)
+0570 LET PR$ = REC$(31,10)
+0580 PRINT @(10,7), "Naam: ", KN$
+0590 PRINT @(10,8), "Prijs: ", PR$
+0595 INPUT @(10,15), "Druk op Enter...", D$
+0598 GOTO 0020
+0600 PRINT @(10,15), "Kursus niet gevonden!"
+0610 CLOSE (1)
+0620 INPUT @(10,17), "Druk op Enter...", D$
+0630 GOTO 0020

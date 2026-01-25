@@ -470,6 +470,17 @@ Gerefereerd via `IOL=line` optie in I/O statement.
 - `END=line`: Spring naar line bij EOF.
 - `ERR=line`: Spring naar line bij algemene fout.
 
+### RUN
+**Type:** Flow Control Directive  
+**Syntax:** `RUN [program-name] [, ERR=line]`  
+**Beschrijving:** Start de uitvoering van een programma.
+- **Zonder naam (`RUN`):** Herstart het huidige programma vanaf de eerste regel. Variablen blijven behouden.
+- **Met naam (`RUN "programma"`):** Laadt en start een nieuw programma. 
+    - Variablen uit het huidige programma blijven behouden in de variable table.
+    - Het systeem voert een `RESET` uit: de `GOSUB`-stack en eventuele geneste `CALL`-contexten worden gewist.
+    - `SETERR` en `PRECISION` worden teruggezet naar de standaardwaarden.
+- `ERR=line`: Springt naar `line` als het programma niet gevonden kan worden of niet geladen kan worden.
+
 ### REM
 **Type:** Commentaar  
 **Syntax:** `REM tekst` of `! tekst`  
@@ -506,6 +517,18 @@ Gerefereerd via `IOL=line` optie in I/O statement.
 ---
 
 ## S
+
+### SDX
+**Type:** String Functie  
+**Syntax:** `SDX(string-value [,ERR=line-ref])`  
+**Beschrijving:** Retourneert de 4-karakter Soundex-waarde (Odell-Russell methode) voor een string.
+- De resulterende string bestaat uit de eerste letter van de input (in hoofdletters), gevolgd door 3 cijfers die de klank representeren.
+- Niet hoofdlettergevoelig.
+- Handig voor het zoeken op namen of woorden die fonetisch op elkaar lijken.
+**Voorbeelden:**
+- `SDX("READ")` &rarr; `"R300"`
+- `SDX("boulevard")` &rarr; `"B416"`
+- `SDX("Smith")` &rarr; `"S530"`
 
 ### SELECT
 **Type:** I/O Directive  

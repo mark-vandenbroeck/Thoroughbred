@@ -461,7 +461,8 @@ PATH = ., ./programs, ./tests</code></pre>
         <div class="syntax">INPUT [@(col, row),] [mnemonic,] ["Prompt: ",] vars...</div>
         <p>Requests user input. Now supports cursor addressing and mnemonics (like <code>'CS'</code>,
             <code>'BR'</code>),
-            similar to <code>PRINT</code>.</p>
+            similar to <code>PRINT</code>.
+        </p>
         <ul>
             <li>Supports <code>IOL=</code> formatting.</li>
         </ul>
@@ -591,6 +592,23 @@ PATH = ., ./programs, ./tests</code></pre>
                     <li><code>END=line</code>: Jump on EOF.</li>
                 </ul>
 
+                <h3>RUN</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">RUN [program-name] [, ERR=line]</div>
+                <p>Starts program execution.</p>
+                <ul>
+                    <li><strong>Without name (<code>RUN</code>):</strong> Restarts current program from line 1.
+                        Variables are preserved.</li>
+                    <li><strong>With name (<code>RUN "program"</code>):</strong> Loads and starts a new program.
+                        <ul>
+                            <li>Variables are preserved in the variable table.</li>
+                            <li>Performs a <code>RESET</code>: clears GOSUB stack and nested CALL contexts.</li>
+                            <li>Resets <code>SETERR</code> and <code>PRECISION</code> to defaults.</li>
+                        </ul>
+                    </li>
+                    <li><code>ERR=line</code>: Jumps to <code>line</code> if program not found or load fails.</li>
+                </ul>
+
                 <h3>REM</h3>
                 <span class="cmd-type">Comment</span>
                 <div class="syntax">REM text</div>
@@ -626,6 +644,18 @@ PATH = ., ./programs, ./tests</code></pre>
                 <p>Rounds a number.</p>
 
                 <h2 id="s">S</h2>
+
+                <h3>SDX</h3>
+                <span class="cmd-type">String Function</span>
+                <div class="syntax">SDX(string-value [,ERR=line-ref])</div>
+                <p>Returns the 4-character Soundex value (Odell-Russell method) for a string.</p>
+                <ul>
+                    <li>Result: First letter (UPPER) + 3 digits representing the sound.</li>
+                    <li>Case-insensitive.</li>
+                    <li>Useful for phonetic searches.</li>
+                </ul>
+                <p><strong>Examples:</strong> <code>SDX("READ")</code> &rarr; <code>"R300"</code>,
+                    <code>SDX("boulevard")</code> &rarr; <code>"B416"</code></p>
 
                 <h3>SELECT</h3>
                 <span class="cmd-type">I/O Directive</span>
