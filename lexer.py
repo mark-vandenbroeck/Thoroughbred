@@ -45,7 +45,7 @@ class Lexer:
             'AND', 'OR', 'NOT', 'XOR',
             'SETTRACE', 'ENDTRACE', 'SET', 'TRACEMODE', 'STOP', 'DTN',
             'ATH', 'HTA', 'MAX', 'MIN', 'NUM', 'KEY', 'IOLIST', 'IOL',
-                                                'SETERR', 'RETRY', 'FIND', 'READRECORD', 'FINDRECORD', 'RECORD', 'BIN', 'DEC', 'FILL', 'RUN', 'SDX'
+                                                                        'SETERR', 'RETRY', 'FIND', 'READRECORD', 'FINDRECORD', 'RECORD', 'BIN', 'DEC', 'FILL', 'RUN', 'SDX', 'SETESC'
         }
 
     def tokenize(self, text):

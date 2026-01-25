@@ -11,6 +11,7 @@ from file_manager import FileManager
 from lexer import Lexer, Token
 
 class ExecutionFinished(Exception): pass
+class EscapeInterruption(Exception): pass
 class BasicErrorJump(Exception):
     def __init__(self, target): self.target = target
 
@@ -37,11 +38,16 @@ class ThoroughbredBasicInterpreter:
         self.seterr_saved = 0
         self.retry_index = 0 # Index of the line to retry
         self.last_error_line = None 
+        
+        # Escape Handling State (SETESC)
+        self.setesc_line = 0
+        self.escape_trapped = False
+        self.escape_return_idx = None
 
     def reset_state(self):
         """Resets the interpreter to a clean state for a new execution."""
         self.context_stack = []
-        self._push_context({}, [])
+        self._push_context({'CTL': 0}, [])
         
         # Reset trace state
         self.trace_enabled = False
@@ -57,10 +63,45 @@ class ThoroughbredBasicInterpreter:
         self.retry_index = 0
         self.last_error_line = None
 
+        # Reset escape state
+        self.setesc_line = 0
+        self.escape_trapped = False
+        self.escape_return_idx = None
+
         # Reset files
         for chn in list(self.file_manager.channels.keys()):
             try: self.file_manager.close(chn)
             except: pass
+
+    def signal_escape(self):
+        """Signals that the Escape key was pressed."""
+        self.escape_trapped = True
+
+    def _check_escape_trap(self):
+        """Checks if an escape was trapped and handles branching."""
+        if self.escape_trapped and self.setesc_line > 0:
+            target = self.setesc_line
+            self.escape_trapped = False
+            # system variable ERR = 127
+            self.variables['ERR'] = 127
+            
+            # Save return point: current line index
+            # The manual says RETURN goes to the statement FOLLOWING the interrupted one.
+            # If we trap between statements, we shouldn't have moved current_line_idx yet?
+            # Actually, we check at the START of the loop.
+            # So current_line_idx is the line that *is about* to be executed.
+            # After trap-routine finishes, RETURN should go to the statement FOLLOWING the interrupted one.
+            self.escape_return_idx = self.current_line_idx + 1
+            self.retry_index = self.current_line_idx
+            
+            if target in self.line_numbers:
+                self.current_line_idx = self.line_numbers.index(target)
+                return True
+        elif self.escape_trapped:
+            # No SETESC handler: default is to stop (like ExecutionFinished or error)
+            self.escape_trapped = False
+            raise ExecutionFinished()
+        return False
 
 
     def _push_context(self, program, line_numbers, variables=None, passed_args=None):
@@ -212,6 +253,15 @@ class ThoroughbredBasicInterpreter:
                  
         return items
 
+    def _find_matching(self, tokens, start_idx, open_type, close_type):
+        count = 0
+        for i in range(start_idx, len(tokens)):
+            if tokens[i].type == open_type: count += 1
+            elif tokens[i].type == close_type:
+                count -= 1
+                if count == 0: return i
+        return -1
+
     def evaluate_expression(self, tokens):
         """
         A simplified expression evaluator that handles:
@@ -224,19 +274,9 @@ class ThoroughbredBasicInterpreter:
         if not tokens:
             return None
 
-        # Helper to find matching bracket/parenthesis
-        def find_matching(start_idx, open_type, close_type):
-            count = 0
-            for i in range(start_idx, len(tokens)):
-                if tokens[i].type == open_type: count += 1
-                elif tokens[i].type == close_type:
-                    count -= 1
-                    if count == 0: return i
-            return -1
-
         # 1. Handle built-in functions: POS(...)
         if tokens[0].type == 'POS' and len(tokens) > 2 and tokens[1].type == 'LPAREN':
-            close_idx = find_matching(1, 'LPAREN', 'RPAREN')
+            close_idx = self._find_matching(tokens, 1, 'LPAREN', 'RPAREN')
             if close_idx != -1:
                 inner = tokens[2:close_idx]
                 # POS syntax is unique: (search relop reference [, step [, occurrence]])
@@ -322,7 +362,7 @@ class ThoroughbredBasicInterpreter:
 
         # KEY function logic
         if tokens[0].type == 'KEY' and len(tokens) > 2 and tokens[1].type == 'LPAREN':
-            close_idx = find_matching(1, 'LPAREN', 'RPAREN')
+            close_idx = self._find_matching(tokens, 1, 'LPAREN', 'RPAREN')
             if close_idx != -1:
                 inner = tokens[2:close_idx]
                 args = []
@@ -366,7 +406,7 @@ class ThoroughbredBasicInterpreter:
                     raise RuntimeError(f"{msg} (ERR={code})")
         
         if tokens[0].type in builtins and len(tokens) > 2 and tokens[1].type == 'LPAREN':
-            close_idx = find_matching(1, 'LPAREN', 'RPAREN')
+            close_idx = self._find_matching(tokens, 1, 'LPAREN', 'RPAREN')
             if close_idx != -1:
                 inner = tokens[2:close_idx]
                 # Split args by COMMA
@@ -774,6 +814,7 @@ class ThoroughbredBasicInterpreter:
                         else:
                              # Raise exception so global SETERR or default handler acts
                              raise e
+
                              
 
 
@@ -786,8 +827,8 @@ class ThoroughbredBasicInterpreter:
                 if isinstance(val, str) and val.startswith('"'):
                     val = val[1:-1]
                 return val
-            elif token.type in ('ID_NUM', 'ID_STR'):
-                return self.variables.get(token.value, 0 if token.type == 'ID_NUM' else "")
+            elif token.type in ('ID_NUM', 'ID_STR', 'ERR'):
+                return self.variables.get(token.value, 0 if token.type != 'ID_STR' else "")
             elif token.type == 'MNEMONIC':
                 return token.value[1:-1]
             return 0
@@ -797,7 +838,7 @@ class ThoroughbredBasicInterpreter:
             if tokens[1].type in ('LPAREN', 'LBRACKET'):
                 open_type = tokens[1].type
                 close_type = 'RPAREN' if open_type == 'LPAREN' else 'RBRACKET'
-                match_idx = find_matching(1, open_type, close_type)
+                match_idx = self._find_matching(tokens[i:], 1, open_type, close_type)
                 if match_idx != -1:
                     var_name = tokens[0].value
                     # Extract arguments between brackets/parentheses
@@ -854,8 +895,11 @@ class ThoroughbredBasicInterpreter:
                     if prev.type in ('NUMBER', 'STRING', 'ID_NUM', 'ID_STR', 'RPAREN', 'RBRACKET'):
                         left = self.evaluate_expression(tokens[:i])
                         right = self.evaluate_expression(tokens[i+1:])
-                        if op_type == '+': return left + right
-                        if op_type == '-': return left - right
+                        try:
+                            if op_type == '+': return left + right
+                            if op_type == '-': return left - right
+                        except TypeError as e:
+                             raise RuntimeError(f"{e} (left={left} ({type(left)}), right={right} ({type(right)}))")
 
         for op_type in ('*', '/'):
             depth = 0
@@ -878,7 +922,7 @@ class ThoroughbredBasicInterpreter:
         # Parentheses/Brackets at the beginning
         if tokens[0].type in ('LPAREN', 'LBRACKET'):
             close_type = 'RPAREN' if tokens[0].type == 'LPAREN' else 'RBRACKET'
-            match_idx = find_matching(0, tokens[0].type, close_type)
+            match_idx = self._find_matching(tokens, 0, tokens[0].type, close_type)
             if match_idx == len(tokens) - 1:
                 return self.evaluate_expression(tokens[1:match_idx])
 
@@ -945,8 +989,10 @@ class ThoroughbredBasicInterpreter:
     def execute(self):
         while self.context_stack:
             try:
-                # Check for infinite loop or max instructions? (not yet)
-                
+                # 0. Check for Escape Trap
+                if self._check_escape_trap():
+                    continue
+
                 # Get current line
                 ctx = self._curr()
                 if ctx['current_line_idx'] >= len(ctx['line_numbers']):
@@ -994,6 +1040,10 @@ class ThoroughbredBasicInterpreter:
                 
             except ExecutionFinished:
                 break
+            except (EscapeInterruption, KeyboardInterrupt):
+                # Triggered by IO device (Terminal)
+                self.signal_escape()
+                continue
             except BasicErrorJump as jump:
                 # Handle ERR= jump
                 if jump.target in self.line_numbers:
@@ -1101,14 +1151,7 @@ class ThoroughbredBasicInterpreter:
             should_trace = True
             if 'SKIPCALLS' in self.trace_options and is_in_call: should_trace = False
             if 'SKIPGOSUBS' in self.trace_options and is_in_gosub: should_trace = False
-            
-            if should_trace:
-                ln = self.line_numbers[self.current_line_idx]
-                raw = " ".join(str(t.value) for t in tokens)
-                msg = f"-->{ln:05d} {raw}"
-                if self.trace_channel == 0:
-                    print(msg)
-                    if self.trace_delay > 0: import time; time.sleep(self.trace_delay)
+
 
         cmd = tokens[0].type
         
@@ -1163,22 +1206,7 @@ class ThoroughbredBasicInterpreter:
             depth = 0
             final_separator = None 
 
-            for t in tokens[current_idx:]:
-                if t.type == 'MNEMONIC':
-                    # Flush current expression if any
-                    if current_expr:
-                        val = str(self.evaluate_expression(current_expr))
-                        output.append(val)
-                        current_expr = []
 
-                    # Handle Mnemonic
-                    mnemonic = t.value[1:-1] # Strip quotes
-                    if self.io_handler:
-                        # Flush current output first
-                        if output:
-                            text_out = " ".join(output)
-                            self.io_handler.write(text_out)
-                            output = []
 
             for t in tokens[current_idx:]:
                 if t.type == 'MNEMONIC':
@@ -1393,6 +1421,12 @@ class ThoroughbredBasicInterpreter:
                 raise RuntimeError(f"Invalid line number {tokens[1].value}")
 
         elif cmd == 'RETURN':
+            if self.escape_return_idx is not None:
+                # Returning from a SETESC trap
+                self.current_line_idx = self.escape_return_idx
+                self.escape_return_idx = None
+                return
+
             if not self.stack:
                 raise RuntimeError("RETURN without GOSUB")
             self.current_line_idx = self.stack.pop()
@@ -1423,10 +1457,29 @@ class ThoroughbredBasicInterpreter:
             target_tokens = tokens[then_idx+1:]
 
             cond_val = False
-            if len(condition_tokens) == 3 and condition_tokens[1].type == 'ASSIGN':
-                left = self.evaluate_expression([condition_tokens[0]])
-                right = self.evaluate_expression([condition_tokens[2]])
-                cond_val = (left == right)
+            # Find comparison operator in condition tokens
+            # Simple case: expr OP expr
+            # We scan for RELOP or ASSIGN at top level (depth 0)
+            op_idx = -1
+            op_type = None
+            depth = 0
+            for i, t in enumerate(condition_tokens):
+                if t.type in ('LPAREN', 'LBRACKET'): depth += 1
+                elif t.type in ('RPAREN', 'RBRACKET'): depth -= 1
+                elif depth == 0 and (t.type == 'RELOP' or t.type == 'ASSIGN'):
+                    op_idx = i
+                    op_type = t.value
+                    break
+            
+            if op_idx != -1:
+                left = self.evaluate_expression(condition_tokens[:op_idx])
+                right = self.evaluate_expression(condition_tokens[op_idx+1:])
+                if op_type == '=': cond_val = (left == right)
+                elif op_type == '<': cond_val = (left < right)
+                elif op_type == '>': cond_val = (left > right)
+                elif op_type == '<=': cond_val = (left <= right)
+                elif op_type == '>=': cond_val = (left >= right)
+                elif op_type == '<>' or op_type == '!=': cond_val = (left != right)
             else:
                 cond_val = bool(self.evaluate_expression(condition_tokens))
 
@@ -1448,46 +1501,6 @@ class ThoroughbredBasicInterpreter:
             else:
                 self.current_line_idx += 1
 
-        elif cmd == 'INPUT':
-            # Support: INPUT @(col,row), 'CS', "Prompt: ", VAR$
-            current_idx = 1
-            prompt_parts = []
-            
-            # 1. Handle cursor addressing @(col,row) at start
-            if current_idx < len(tokens) and tokens[current_idx].type == 'AT':
-                try:
-                    if tokens[current_idx+1].type == 'LPAREN':
-                        paren_end = -1
-                        depth = 0
-                        for i in range(current_idx+1, len(tokens)):
-                            if tokens[i].type == 'LPAREN': depth += 1
-                            elif tokens[i].type == 'RPAREN': 
-                                depth -= 1
-                                if depth == 0: 
-                                    paren_end = i
-                                    break
-                        if paren_end != -1:
-                            inside = tokens[current_idx+2:paren_end]
-                            parts = []
-                            curr = []
-                            d = 0
-                            for t in inside:
-                                if t.type in ('LPAREN', 'LBRACKET'): d+=1
-                                elif t.type in ('RPAREN', 'RBRACKET'): d-=1
-                                if d==0 and t.type == 'COMMA':
-                                    parts.append(curr)
-                                    curr = []
-                                else:
-                                    curr.append(t)
-                            if curr: parts.append(curr)
-                            
-                            if len(parts) >= 2:
-                                col = int(self.evaluate_expression(parts[0]))
-                                row = int(self.evaluate_expression(parts[1]))
-                                if self.io_handler:
-                                    self.io_handler.move_cursor(col, row)
-                            current_idx = paren_end + 1
-                except Exception: pass
 
         elif cmd == 'INPUT':
             # Robust INPUT parsing: support mnemonics, @(c,r), prompts, and MULTIPLE variables.
@@ -1498,7 +1511,7 @@ class ThoroughbredBasicInterpreter:
             if current_idx < len(tokens) and tokens[current_idx].type == 'AT':
                 try:
                     if tokens[current_idx+1].type == 'LPAREN':
-                        match = find_matching(current_idx+1, 'LPAREN', 'RPAREN')
+                        match = self._find_matching(tokens, current_idx+1, 'LPAREN', 'RPAREN')
                         if match != -1:
                             inside = tokens[current_idx+2:match]
                             parts = []
@@ -1569,9 +1582,23 @@ class ThoroughbredBasicInterpreter:
             for i, var_token in enumerate(target_vars):
                 p = final_prompt if i == 0 else ""
                 if self.io_handler:
-                    user_input = self.io_handler.input(p)
+                    res = self.io_handler.input(p)
+                    # Support both (text, ctl) and simple text
+                    if isinstance(res, tuple):
+                        user_input, ctl = res
+                    else:
+                        user_input, ctl = res, 0
                 else:
-                    user_input = input(p)
+                    user_input, ctl = input(p), 0
+                
+                self.variables['CTL'] = ctl
+                
+                # If only CTL key pressed (ctl != 0 and user_input empty), no data assigned?
+                # Manual says: "If the only key pressed... is a CTL-generating key no data is returned"
+                # This implies we skip assignment or assign empty/default?
+                # "only the appropriate value in CTL."
+                # If we don't assign, what happens to the variable? It keeps old value?
+                # Usually INPUT overwrites. Let's assume it assigns existing buffer (empty).
                 
                 if var_token.type == 'ID_NUM':
                     try:
@@ -2157,6 +2184,14 @@ class ThoroughbredBasicInterpreter:
             self.trace_enabled = False
             self.current_line_idx += 1
 
+        elif cmd == 'SETESC':
+            try:
+                val = self.evaluate_expression(tokens[1:])
+                self.setesc_line = int(float(val))
+            except:
+                self.setesc_line = 0
+            self.current_line_idx += 1
+
         elif cmd == 'SET' and len(tokens) > 1 and tokens[1].type == 'TRACEMODE':
              idx = 2
              arg_tokens = []
@@ -2240,6 +2275,10 @@ class ThoroughbredBasicInterpreter:
                     self.seterr_saved = 0
                     # PRECISION = 2 (standard fallback)
                     
+                    self.setesc_line = 0
+                    self.escape_trapped = False
+                    self.escape_return_idx = None
+                    
                     # 4. Parse and load the new program into current context
                     temp_int = ThoroughbredBasicInterpreter()
                     temp_int.load_program(source, reset=False) # Don't reset temp_int's internal context
@@ -2305,6 +2344,7 @@ class ThoroughbredBasicInterpreter:
                 return
                 
             for chn in list(self.file_manager.channels.keys()): self.file_manager.close(chn)
+            self.setesc_line = 0
             raise ExecutionFinished()
 
         else:

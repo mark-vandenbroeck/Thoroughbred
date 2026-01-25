@@ -3,7 +3,8 @@ import os
 import threading
 import queue
 import time
-from interpreter import ThoroughbredBasicInterpreter
+import signal
+from interpreter import ThoroughbredBasicInterpreter, EscapeInterruption
 
 try:
     import tkinter as tk
@@ -12,12 +13,22 @@ try:
 except ImportError:
     HAS_TK = False
 
+
+
 class ConsoleIOHandler:
     def write(self, text):
         print(text, end="", flush=True)
 
     def input(self, prompt=""):
-        return input(prompt)
+        try:
+            return input(prompt), 0
+        except (KeyboardInterrupt, EOFError):
+            self.signal_escape()
+            raise EscapeInterruption()
+
+    def signal_escape(self):
+        if hasattr(self, 'escape_callback') and self.escape_callback:
+            self.escape_callback()
 
     def move_cursor(self, col, row):
         # ANSI escape codes for cursor positioning
@@ -58,6 +69,14 @@ class GuiIOHandler:
     def __init__(self, gui):
         self.gui = gui
         self.input_queue = queue.Queue()
+        self.escape_callback = None
+
+    def signal_escape(self):
+        if self.escape_callback:
+            self.escape_callback()
+        if self.gui.input_enabled:
+            self.input_queue.put("__ESCAPE__")
+            self.gui.input_enabled = False
 
     def write(self, text):
         self.gui.write(text)
@@ -65,7 +84,10 @@ class GuiIOHandler:
     def input(self, prompt=""):
         self.write(prompt)
         self.gui.enable_input()
-        return self.input_queue.get()
+        val = self.input_queue.get()
+        if val == "__ESCAPE__":
+            raise EscapeInterruption()
+        return val
 
     def move_cursor(self, col, row):
         self.gui.move_cursor(col, row)
@@ -130,6 +152,28 @@ class TerminalGUI:
         self.input_enabled = False
         self.current_input = []
         self.io_handler = None # Set later
+        
+        # CTL mapping
+        self.ctl_map = {
+            'Return': 0,
+            'F1': 1, 'F2': 2, 'F3': 3, 'F4': 4, 'F5': 5,
+            'F6': 6, 'F7': 7, 'F8': 8, 'F9': 9, 'F10': 10,
+            'F11': 11, 'F12': 12,
+            'Right': -1, 'Left': -2, 'Down': -3, 'Up': -4,
+            'BackSpace': -5, # Handled specially if editing? But prompt says "Backspace -5"
+            # If Backspace is pressed, should it delete char OR return -5?
+            # "Negative CTL values are sensed only by the INPUT directive with the EDT option."
+            # "The corresponding key for a negative CTL generates its normal character sequence to the program for INPUT without the EDT option"
+            # For now, let's keep Backspace as editing key unless we switch modes.
+            # But the requirement lists "Backspace -5".
+            # Let's map it but maybe allow internal editing?
+            'Delete': -6, 'Insert': -7,
+            'Home': -14, 'End': -22, # ?
+            'Prior': -17, # Page Up
+            'Next': -16,  # Page Down
+            'Tab': -12,
+            # 'BackTab': -13, # Shift+Tab?
+        }
 
     def set_io_handler(self, handler):
         self.io_handler = handler
@@ -248,8 +292,27 @@ class TerminalGUI:
         pass
 
     def on_key(self, event):
+        if event.keysym == "Escape":
+            self.io_handler.signal_escape()
+            return "break"
         if not self.input_enabled:
             return "break"
+            
+        # Check special CTL keys
+        if event.keysym in self.ctl_map:
+            if event.keysym in ("BackSpace", "Return"):
+                # These might have default behavior (editing) or terminating
+                # For Return, it terminates with 0.
+                pass 
+            else:
+                 # It's a special function key (F1, Arrows, etc.)
+                 # Terminate input and return CTL value
+                 ctl_val = self.ctl_map[event.keysym]
+                 text = "".join(self.current_input)
+                 self.input_enabled = False
+                 self.io_handler.input_queue.put((text, ctl_val))
+                 return "break"
+
         if event.char and event.keysym not in ("Return", "BackSpace"):
             self.current_input.append(event.char)
             # Allow default behavior to show char
@@ -268,7 +331,7 @@ class TerminalGUI:
         self.text_widget.insert(tk.INSERT, "\n")
         self.text_widget.see(tk.END)
         self.input_enabled = False
-        self.io_handler.input_queue.put(text)
+        self.io_handler.input_queue.put((text, 0)) # CTL=0 for Enter
         return "break"
 
     def shutdown(self):
@@ -282,6 +345,7 @@ class BasicCLI:
     def __init__(self, io_handler):
         self.interpreter = ThoroughbredBasicInterpreter(io_handler=io_handler)
         self.io_handler = io_handler
+        self.io_handler.escape_callback = self.interpreter.signal_escape
         self.source_lines = {} # line_number -> raw_text
 
     def print(self, text):
@@ -364,7 +428,12 @@ class BasicCLI:
 
         while True:
             try:
-                user_input = self.input("> ").strip()
+                res = self.input("> ")
+                if isinstance(res, tuple):
+                    user_input, ctl = res
+                else:
+                    user_input = res
+                user_input = user_input.strip()
             except EOFError:
                 break
             except Exception as e:

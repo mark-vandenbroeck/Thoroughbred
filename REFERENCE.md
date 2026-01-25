@@ -4,6 +4,24 @@ Deze handleiding bevat een gedetailleerd alfabetisch overzicht van alle geïmple
 
 ---
 
+## System Variables
+
+### CTL
+**Type:** Numeriek System Variable
+**Beschrijving:** Bevat de waarde van de toets die de laatste `INPUT` (of `FINPUT`) heeft beëindigd.
+- `0`: Enter
+- `1` t/m `12`: F1 t/m F12
+- `-1`: Pijl Rechts
+- `-2`: Pijl Links
+- `-3`: Pijl Omlaag
+- `-4`: Pijl Omhoog
+- `-5`: Backspace
+- `-6`: Delete
+- `-7`: Insert
+- `-10`: Erase Line
+- `-14`: Home
+- Zie handleiding voor volledige lijst.
+
 ## Configuratie en Disks
 
 De interpreter maakt gebruik van een **'Disk' systeem** voor bestandsbeheer, waarbij logische disk-namen (zoals `D0`, `D1`) worden gekoppeld aan fysieke directories op het hostsysteem.
@@ -546,7 +564,16 @@ Gerefereerd via `IOL=line` optie in I/O statement.
 **Beschrijving:** Definieert een globale error-handler routine.
 - Als er een fout optreedt (en geen `ERR=` aanwezig is), springt de interpreter naar `line`.
 - `SETERR` wordt automatisch op 0 (uit) gezet bij het binnengaan van de handler.
-- Gebruik `RETRY` (nog niet geïmplementeerd) om terug te keren.
+- Gebruik `RETRY` om terug te keren naar de regel die de fout veroorzaakte.
+
+### SETESC
+**Type:** Flow Control Directive  
+**Syntax:** `SETESC line | 0`  
+**Beschrijving:** Definieert een trap-routine die wordt uitgevoerd wanneer de Escape-toets (of Ctrl+C) wordt ingedrukt.
+- Als Escape wordt ingedrukt, springt de interpreter naar `line`.
+- De systeemvariabele `ERR` wordt op `127` gezet.
+- Gebruik `RETURN` om terug te keren naar het statement direct volgend op de onderbreking.
+- `SETESC 0`: Schakelt de escape-trap uit (het programma stopt dan bij Escape).
 
 ### SETTRACE
 **Type:** Debug Directive  

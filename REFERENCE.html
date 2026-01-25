@@ -188,6 +188,56 @@
         <p>This manual provides a detailed alphabetical overview of all implemented directives (commands) and functions
             in this interpreter.</p>
 
+        <h2 id="sysvars">System Variables</h2>
+        <h3>CTL</h3>
+        <p>Contains the value of the key that terminated the last <code>INPUT</code> (or <code>FINPUT</code>).</p>
+        <table>
+            <tr>
+                <th>Key</th>
+                <th>Value</th>
+            </tr>
+            <tr>
+                <td>Enter</td>
+                <td>0</td>
+            </tr>
+            <tr>
+                <td>F1 - F12</td>
+                <td>1 - 12</td>
+            </tr>
+            <tr>
+                <td>Right</td>
+                <td>-1</td>
+            </tr>
+            <tr>
+                <td>Left</td>
+                <td>-2</td>
+            </tr>
+            <tr>
+                <td>Down</td>
+                <td>-3</td>
+            </tr>
+            <tr>
+                <td>Up</td>
+                <td>-4</td>
+            </tr>
+            <tr>
+                <td>Backspace</td>
+                <td>-5</td>
+            </tr>
+            <tr>
+                <td>Delete</td>
+                <td>-6</td>
+            </tr>
+            <tr>
+                <td>Insert</td>
+                <td>-7</td>
+            </tr>
+            <tr>
+                <td>Home</td>
+                <td>-14</td>
+            </tr>
+        </table>
+
         <h2 id="config">Configuration and Disks</h2>
         <p>The interpreter uses a <strong>'Disk' system</strong> for file management, allowing logical disk names (like
             <code>D0</code>, <code>D1</code>) to map to physical directories on the host system.
@@ -655,7 +705,8 @@ PATH = ., ./programs, ./tests</code></pre>
                     <li>Useful for phonetic searches.</li>
                 </ul>
                 <p><strong>Examples:</strong> <code>SDX("READ")</code> &rarr; <code>"R300"</code>,
-                    <code>SDX("boulevard")</code> &rarr; <code>"B416"</code></p>
+                    <code>SDX("boulevard")</code> &rarr; <code>"B416"</code>
+                </p>
 
                 <h3>SELECT</h3>
                 <span class="cmd-type">I/O Directive</span>
@@ -677,6 +728,18 @@ PATH = ., ./programs, ./tests</code></pre>
                     </li>
                     <li><code>SETERR OFF</code> disables the handler.</li>
                     <li>Error handler is automatically disabled upon entry.</li>
+                </ul>
+
+                <h3>SETESC</h3>
+                <span class="cmd-type">Flow Control Directive</span>
+                <div class="syntax">SETESC line | 0</div>
+                <p>Defines a trap routine executed when the Escape key (or Ctrl+C) is pressed.</p>
+                <ul>
+                    <li>If Escape is pressed, the interpreter jumps to <code>line</code>.</li>
+                    <li>The system variable <code>ERR</code> is set to <code>127</code>.</li>
+                    <li>Use <code>RETURN</code> to resume execution at the statement immediately following the
+                        interruption.</li>
+                    <li><code>SETESC 0</code> disables the escape trap (program stops on Escape).</li>
                 </ul>
 
                 <h3>SETTRACE</h3>
